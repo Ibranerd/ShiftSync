@@ -43,7 +43,23 @@ export default function AdminDashboardPage() {
         return
       }
 
-      setAssignments((data ?? []) as Assignment[])
+      const normalized = (data ?? []).map((row: any) => {
+        const shift = Array.isArray(row.shifts) ? row.shifts[0] : row.shifts
+        return {
+          id: row.id,
+          user_id: row.user_id,
+          shift_id: row.shift_id,
+          status: row.status,
+          shifts: shift
+            ? {
+                location_id: shift.location_id,
+                start_utc: shift.start_utc,
+                end_utc: shift.end_utc,
+              }
+            : null,
+        } as Assignment
+      })
+      setAssignments(normalized)
       setStatus("")
     }
 
