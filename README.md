@@ -406,86 +406,6 @@ Admin export:
 
 - build a server action or route handler that streams CSV from `audit_logs`
 
-## 72-Hour Delivery Plan
-
-### Hours 0-2: Repo and Infrastructure
-
-- scaffold Next.js 14 with App Router
-- install Tailwind and shadcn/ui
-- enable TypeScript strict mode
-- set up Supabase project and environment variables
-- establish the folder structure before feature work
-
-### Hours 2-8: Migrations, RLS, and Seed Data
-
-- write all SQL migrations
-- create enums, tables, indexes, views, functions, and triggers
-- implement RLS policies by role and location scope
-- write the seed script
-
-Seed data should include:
-
-- 4 locations, 2 in `America/New_York` and 2 in `America/Los_Angeles`
-- around 20 staff users
-- multiple skills and certification combinations
-- recurring availability plus exception windows
-- existing shifts with at least one conflict case
-- a pending swap request
-- an overtime edge case
-- a fairness imbalance case
-
-### Hours 8-14: Constraint Engine
-
-- implement the full validation tree in pure TypeScript
-- write unit tests for every rule
-- cover overnight shifts, revoked certifications, and rest-gap violations
-
-### Hours 14-24: Auth, Routing, and Scheduling UI
-
-- wire Supabase Auth
-- add middleware-based role routing
-- build manager schedule view with FullCalendar
-- support drag-to-assign
-- show validation feedback inline before confirmation
-
-### Hours 24-34: Overtime and Swap Workflow
-
-- wire weekly hours and projected hours views
-- add what-if preview before assignment confirmation
-- implement swap request lifecycle and guards
-
-### Hours 34-44: Realtime and Notifications
-
-- create notification triggers first
-- verify inserts at the database layer
-- subscribe from the UI after the backend is proven
-
-### Hours 44-52: Fairness and Audit Logs
-
-- build fairness dashboard
-- implement audit triggers
-- add CSV export for admins
-
-### Hours 52-60: Timezones and Evaluation Scenarios
-
-- manually walk through the six expected evaluation scenarios
-- validate overnight shifts
-- validate DST behavior
-- validate dual-location staff handling
-
-### Hours 60-68: RLS and Concurrency Testing
-
-- test manager isolation across locations
-- test staff self-access boundaries
-- simulate concurrent assignment attempts in multiple tabs
-
-### Hours 68-72: Deploy and Final Documentation
-
-- deploy to Vercel
-- configure Supabase environment variables
-- verify seeded credentials and role access
-- finalize the README with credentials, assumptions, and limitations
-
 ## Ambiguity Decisions
 
 These decisions should be documented explicitly in the final product README.
@@ -538,6 +458,10 @@ When the product is complete, extend this file with:
 - screenshots or short workflow walkthroughs
 - test commands
 - deployment URL
+
+```
+https://shift-sync-seven.vercel.app/login
+```
 
 ## Bottom Line
 
