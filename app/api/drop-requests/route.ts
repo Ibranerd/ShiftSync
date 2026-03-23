@@ -47,6 +47,14 @@ export async function POST(request: Request) {
     if (!shiftId) {
       return NextResponse.json({ ok: false, error: "missing_shift" }, { status: 400 })
     }
+    const { count } = await supabase
+      .from("drop_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("requested_by", userData.user.id)
+      .in("status", ["pending", "claimed"])
+    if ((count ?? 0) >= 3) {
+      return NextResponse.json({ ok: false, error: "drop_limit_reached" }, { status: 400 })
+    }
     const { data, error } = await supabase
       .from("drop_requests")
       .insert({

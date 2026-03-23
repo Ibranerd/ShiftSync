@@ -44,6 +44,14 @@ export async function POST(request: Request) {
     if (!shiftId || !targetUserId) {
       return NextResponse.json({ ok: false, error: "missing_shift_or_target" }, { status: 400 })
     }
+    const { count } = await supabase
+      .from("swap_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("requested_by", userData.user.id)
+      .in("status", ["pending_staff", "pending_manager"])
+    if ((count ?? 0) >= 3) {
+      return NextResponse.json({ ok: false, error: "swap_limit_reached" }, { status: 400 })
+    }
     const { data, error } = await supabase
       .from("swap_requests")
       .insert({
