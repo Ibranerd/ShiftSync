@@ -16,6 +16,9 @@ const plexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "ShiftSync",
   description: "ShiftSync",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
