@@ -1,0 +1,15 @@
+alter table public.users disable row level security;
+alter table public.locations disable row level security;
+alter table public.location_managers disable row level security;
+alter table public.user_locations disable row level security;
+alter table public.skills disable row level security;
+alter table public.user_skills disable row level security;
+alter table public.availability_windows disable row level security;
+alter table public.shifts disable row level security;
+alter table public.shift_assignments disable row level security;
+alter table public.swap_requests disable row level security;
+alter table public.drop_requests disable row level security;
+alter table public.notifications disable row level security;
+alter table public.notification_preferences disable row level security;
+alter table public.audit_logs disable row level security;
+alter table public.overtime_warnings disable row level security;
