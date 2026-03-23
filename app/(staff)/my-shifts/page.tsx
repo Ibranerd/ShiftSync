@@ -15,7 +15,7 @@ export default function StaffMyShiftsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
   const [status, setStatus] = useState("Loading notifications...")
   const [actionStatus, setActionStatus] = useState("")
-  const [assignments, setAssignments] = useState<Array<{ id: string; start_utc: string; end_utc: string; location_id: string }>>([])
+  const [assignments, setAssignments] = useState<Array<{ id: string; start_utc: string; end_utc: string; location_id: string; is_published?: boolean }>>([])
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
@@ -29,7 +29,7 @@ export default function StaffMyShiftsPage() {
 
       const { data: assignmentRows } = await supabase
         .from("shift_assignments")
-        .select("id,shifts:shifts (start_utc,end_utc,location_id)")
+        .select("id,shifts:shifts (start_utc,end_utc,location_id,is_published)")
         .eq("user_id", userData.user.id)
         .neq("status", "dropped")
 
@@ -39,6 +39,7 @@ export default function StaffMyShiftsPage() {
           start_utc: row.shifts?.start_utc,
           end_utc: row.shifts?.end_utc,
           location_id: row.shifts?.location_id,
+          is_published: row.shifts?.is_published,
         })),
       )
 
@@ -81,7 +82,7 @@ export default function StaffMyShiftsPage() {
           () => {
             supabase
               .from("shift_assignments")
-              .select("id,shifts:shifts (start_utc,end_utc,location_id)")
+              .select("id,shifts:shifts (start_utc,end_utc,location_id,is_published)")
               .eq("user_id", userData.user.id)
               .neq("status", "dropped")
               .then(({ data: rows }) => {
@@ -91,9 +92,17 @@ export default function StaffMyShiftsPage() {
                     start_utc: row.shifts?.start_utc,
                     end_utc: row.shifts?.end_utc,
                     location_id: row.shifts?.location_id,
+                    is_published: row.shifts?.is_published,
                   })),
                 )
               })
+          },
+        )
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "shifts" },
+          () => {
+            setActionStatus("Schedule updated.")
           },
         )
         .subscribe()
@@ -216,7 +225,9 @@ export default function StaffMyShiftsPage() {
                 <div className="text-muted-foreground">
                   {assignment.start_utc} → {assignment.end_utc}
                 </div>
-                <div className="text-xs text-muted-foreground">Location: {assignment.location_id}</div>
+                <div className="text-xs text-muted-foreground">
+                  Location: {assignment.location_id} · {assignment.is_published ? "Published" : "Unpublished"}
+                </div>
               </div>
             ))}
           </div>

@@ -13,9 +13,23 @@ export default function StaffSwapRequestsPage() {
   const [dropStatus, setDropStatus] = useState<DropStatus>("pending")
   const [dropMessage, setDropMessage] = useState<string>("")
   const [realtimeNotice, setRealtimeNotice] = useState<string>("")
+  const [swapCount, setSwapCount] = useState(0)
+  const [dropCount, setDropCount] = useState(0)
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
+    supabase
+      .from("swap_requests")
+      .select("id", { count: "exact", head: true })
+      .then((result) => {
+        setSwapCount(result.count ?? 0)
+      })
+    supabase
+      .from("drop_requests")
+      .select("id", { count: "exact", head: true })
+      .then((result) => {
+        setDropCount(result.count ?? 0)
+      })
     const channel = supabase
       .channel("swap-drop-updates")
       .on(
@@ -40,6 +54,10 @@ export default function StaffSwapRequestsPage() {
   }, [])
 
   const handleAction = async (action: SwapAction) => {
+    if (action === "request" && swapCount >= 3) {
+      setMessage("Swap limit reached (3 pending).")
+      return
+    }
     setMessage("")
     const response = await fetch("/api/swaps", {
       method: "POST",
@@ -62,6 +80,10 @@ export default function StaffSwapRequestsPage() {
   }
 
   const handleDropAction = async (action: DropAction) => {
+    if (action === "request" && dropCount >= 3) {
+      setDropMessage("Drop limit reached (3 pending).")
+      return
+    }
     setDropMessage("")
     const response = await fetch("/api/drop-requests", {
       method: "POST",

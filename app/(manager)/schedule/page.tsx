@@ -120,6 +120,8 @@ export default function ManagerSchedulePage() {
   const [newPublish, setNewPublish] = useState<boolean>(false)
   const [newStart, setNewStart] = useState<string>("2025-01-15T14:00")
   const [newEnd, setNewEnd] = useState<string>("2025-01-15T22:00")
+  const [weekMessage, setWeekMessage] = useState<string>("")
+  const [weekStart, setWeekStart] = useState<string>("2025-01-13")
 
   const events = useMemo(
     () =>
@@ -232,6 +234,24 @@ export default function ManagerSchedulePage() {
     setPublishMessage(`Shift is now ${action === "publish" ? "published" : "unpublished"}.`)
   }
 
+  const handlePublishWeek = async (action: "publish_week" | "unpublish_week") => {
+    setWeekMessage("")
+    const response = await fetch("/api/shifts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action,
+        weekStart: `${weekStart}T00:00:00.000Z`,
+      }),
+    })
+    const data = await response.json()
+    if (!data.ok) {
+      setWeekMessage(data.error ?? "Unable to update weekly publish state.")
+      return
+    }
+    setWeekMessage(action === "publish_week" ? "Week published." : "Week unpublished.")
+  }
+
   const handleCreateShift = async () => {
     setCreateMessage("")
     const response = await fetch("/api/shifts", {
@@ -312,6 +332,33 @@ export default function ManagerSchedulePage() {
         <p className="mt-3 text-xs text-muted-foreground">
           Unpublish is blocked within 48 hours of the shift start (admin override required).
         </p>
+      </section>
+
+      <section className="rounded-lg border border-border bg-background p-4">
+        <h2 className="text-lg font-semibold">Weekly Publish</h2>
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          <input
+            type="date"
+            className="rounded-md border border-border bg-background px-3 py-2"
+            value={weekStart}
+            onChange={(event) => setWeekStart(event.target.value)}
+          />
+          <button
+            type="button"
+            className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+            onClick={() => handlePublishWeek("publish_week")}
+          >
+            Publish week
+          </button>
+          <button
+            type="button"
+            className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+            onClick={() => handlePublishWeek("unpublish_week")}
+          >
+            Unpublish week
+          </button>
+          {weekMessage && <span className="text-sm text-muted-foreground">{weekMessage}</span>}
+        </div>
       </section>
 
       <section className="rounded-lg border border-border bg-background p-4">

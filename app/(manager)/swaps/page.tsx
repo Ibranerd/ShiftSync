@@ -21,6 +21,46 @@ export default function ManagerSwapsPage() {
   const [dropStatus, setDropStatus] = useState<DropStatus>("claimed")
   const [dropMessage, setDropMessage] = useState<string>("")
   const [realtimeNotice, setRealtimeNotice] = useState<string>("")
+  const [swapCount, setSwapCount] = useState(0)
+  const [dropCount, setDropCount] = useState(0)
+
+  useEffect(() => {
+    const supabase = createSupabaseBrowserClient()
+    supabase
+      .from("swap_requests")
+      .select("id", { count: "exact", head: true })
+      .then((result) => {
+        setSwapCount(result.count ?? 0)
+      })
+    supabase
+      .from("drop_requests")
+      .select("id", { count: "exact", head: true })
+      .then((result) => {
+        setDropCount(result.count ?? 0)
+      })
+
+    const channel = supabase
+      .channel("manager-swap-drop-updates")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "swap_requests" },
+        () => {
+          setRealtimeNotice("Swap request updated in realtime.")
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "drop_requests" },
+        () => {
+          setRealtimeNotice("Drop request updated in realtime.")
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
 
   const handleAction = async (action: SwapAction) => {
     setMessage("")
@@ -82,6 +122,9 @@ export default function ManagerSwapsPage() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
+          <span className="text-xs text-muted-foreground">
+            Pending swaps: {swapCount} · Pending drops: {dropCount}
+          </span>
           {actions.map((action) => (
             <button
               key={action}
@@ -146,27 +189,3 @@ export default function ManagerSwapsPage() {
     </main>
   )
 }
-  useEffect(() => {
-    const supabase = createSupabaseBrowserClient()
-    const channel = supabase
-      .channel("manager-swap-drop-updates")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "swap_requests" },
-        () => {
-          setRealtimeNotice("Swap request updated in realtime.")
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "drop_requests" },
-        () => {
-          setRealtimeNotice("Drop request updated in realtime.")
-        },
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [])

@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400 })
   }
 
-  const action = body.action as "publish" | "unpublish" | "create" | undefined
+  const action = body.action as "publish" | "unpublish" | "create" | "publish_week" | "unpublish_week" | undefined
   const shiftId = body.shiftId as string | undefined
   const overrideReason = body.overrideReason as string | undefined
 
@@ -48,6 +48,28 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ ok: true, shift: data })
+  }
+
+  if (action === "publish_week" || action === "unpublish_week") {
+    const weekStart = body.weekStart as string | undefined
+    if (!weekStart) {
+      return NextResponse.json({ ok: false, error: "missing_week_start" }, { status: 400 })
+    }
+    const weekStartDate = new Date(weekStart)
+    const weekEndDate = new Date(weekStartDate)
+    weekEndDate.setDate(weekStartDate.getDate() + 7)
+
+    const { error: updateError } = await supabase
+      .from("shifts")
+      .update({ is_published: action === "publish_week" })
+      .gte("start_utc", weekStartDate.toISOString())
+      .lt("start_utc", weekEndDate.toISOString())
+
+    if (updateError) {
+      return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ ok: true, action })
   }
   const { data: shift, error } = await supabase
     .from("shifts")
