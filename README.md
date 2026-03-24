@@ -106,6 +106,14 @@ Staff:
 npm test
 ```
 
+## Decisions
+
+- **De-certification historical data**: Historical assignments remain unchanged. Certifications are time-bounded with `certified_at`/`revoked_at`, so future validation blocks post-revocation shifts while past records remain intact.
+- **Desired hours vs availability**: Availability is a hard constraint; desired hours are a planning signal used for fairness and manager views (delta and fairness scoring), not a scheduling block.
+- **Consecutive days definition**: Any day with a shift counts as a worked day regardless of shift length; consecutive-day rules operate on calendar-day presence.
+- **Shift edited after swap approval**: Pending swaps are cancelled on shift edits. After approval, assignments update immediately, so edits apply to the new assignee and are captured by audit logs and notifications.
+- **Location near timezone boundary**: Each location has a single canonical timezone; all shifts and availability for that location use that timezone to avoid ambiguity.
+
 ## Deployment
 
 Deployment URL:
