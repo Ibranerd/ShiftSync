@@ -147,6 +147,9 @@ export default function ManagerSwapsPage() {
         <div className="text-xs text-muted-foreground">
           Pending swaps: {swapCount} · Pending drops: {dropCount}
         </div>
+        <div className="mt-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Approved swaps/drops update assignments immediately. Any later shift edits apply to the new assignee and are logged with notifications.
+        </div>
         {message && (
           <div className="mt-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
             {message}

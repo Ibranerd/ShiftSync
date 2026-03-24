@@ -223,6 +223,9 @@ export default function StaffSwapRequestsPage() {
         <div className="mb-3 text-sm text-muted-foreground">
           Pending swaps: {swapCount} · Pending drops: {dropCount}
         </div>
+        <div className="mb-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          After approval, assignments update immediately. If a shift is edited later, the new assignee keeps the shift and updates are logged and notified.
+        </div>
         <div className="grid gap-3 text-sm md:grid-cols-2">
           <div>
             <label className="text-xs uppercase tracking-wide text-muted-foreground">Shift ID</label>
