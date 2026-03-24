@@ -3,7 +3,7 @@ import SideDrawerLayout from "@/components/side-drawer-layout"
 const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/audit-logs", label: "Audit Logs" },
-  { href: "/fairness", label: "Fairness" },
+  { href: "/admin/fairness", label: "Fairness" },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

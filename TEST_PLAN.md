@@ -47,6 +47,14 @@ Staff (staff1 through staff20):
 6. Confirm violation messages are clear and specific.
 7. Verify suggested alternatives appear when a block occurs.
 
+## 2b. Multi-Headcount Assignments
+1. Create a shift with headcount 2.
+2. Assign two staff members → both succeed.
+3. Attempt a third assignment → blocked with `headcount_full`.
+4. Swap one assignment slot → only that assignee changes; other assignee remains.
+5. Drop one assignment slot → claim/approve updates only that slot.
+6. Two managers try to assign the last slot simultaneously → one succeeds, one receives conflict.
+
 ## 3. Schedule Publish/Unpublish + Cutoff
 1. Create shift, set publish flag on create.
 2. Unpublish a shift more than 48 hours before start → allowed.

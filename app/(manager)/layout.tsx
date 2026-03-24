@@ -4,7 +4,7 @@ const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/schedule", label: "Schedule" },
   { href: "/staff", label: "Staff" },
-  { href: "/fairness", label: "Fairness" },
+  { href: "/manager/fairness", label: "Fairness" },
   { href: "/swaps", label: "Swaps" },
 ]
 
