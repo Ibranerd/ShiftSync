@@ -1,33 +1,15 @@
-import Link from "next/link"
+import SideDrawerLayout from "@/components/side-drawer-layout"
 
 const navLinks = [
-  { href: "/admin/dashboard", label: "Dashboard" },
-  { href: "/admin/audit-logs", label: "Audit Logs" },
-  { href: "/admin/fairness", label: "Fairness" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/audit-logs", label: "Audit Logs" },
+  { href: "/fairness", label: "Fairness" },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="border-b border-border bg-background">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">ShiftSync Admin</p>
-            <h1 className="text-lg font-semibold">Control Center</h1>
-          </div>
-          <nav className="flex items-center gap-4 text-sm font-medium">
-            {navLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="text-muted-foreground hover:text-foreground">
-                {link.label}
-              </Link>
-            ))}
-            <Link href="/logout" className="rounded-md border border-border px-3 py-1.5 text-xs uppercase tracking-wide">
-              Log out
-            </Link>
-          </nav>
-        </div>
-      </header>
-      <div className="mx-auto max-w-6xl px-6 py-8">{children}</div>
-    </div>
+    <SideDrawerLayout brand="ShiftSync Admin" title="Control Center" navLinks={navLinks} contentWidthClass="max-w-7xl">
+      {children}
+    </SideDrawerLayout>
   )
 }

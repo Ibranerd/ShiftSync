@@ -1,35 +1,96 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { formatInTimeZone } from "date-fns-tz"
 import type { SwapAction, SwapStatus } from "@/lib/swaps/state-machine"
 import type { DropAction, DropStatus } from "@/lib/drops/state-machine"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 
-const defaultStatus: SwapStatus = "pending_staff"
+type SwapRow = {
+  id: string
+  shift_id: string
+  requested_by: string
+  target_user_id: string
+  status: SwapStatus
+  reason: string | null
+  shifts: {
+    start_utc: string
+    end_utc: string
+    location_id: string
+    locations: { timezone: string; name: string } | null
+  } | null
+}
+
+type DropRow = {
+  id: string
+  shift_id: string
+  requested_by: string
+  claimed_by: string | null
+  status: DropStatus
+  reason: string | null
+  shifts: {
+    start_utc: string
+    end_utc: string
+    location_id: string
+    locations: { timezone: string; name: string } | null
+  } | null
+}
 
 export default function StaffSwapRequestsPage() {
-  const [status, setStatus] = useState<SwapStatus>(defaultStatus)
+  const [swapRequests, setSwapRequests] = useState<SwapRow[]>([])
+  const [dropRequests, setDropRequests] = useState<DropRow[]>([])
   const [message, setMessage] = useState<string>("")
-  const [dropStatus, setDropStatus] = useState<DropStatus>("pending")
   const [dropMessage, setDropMessage] = useState<string>("")
   const [realtimeNotice, setRealtimeNotice] = useState<string>("")
   const [swapCount, setSwapCount] = useState(0)
   const [dropCount, setDropCount] = useState(0)
+  const [swapShiftId, setSwapShiftId] = useState("")
+  const [swapTargetId, setSwapTargetId] = useState("")
+  const [dropShiftId, setDropShiftId] = useState("")
+  const [currentUserId, setCurrentUserId] = useState<string>("")
+  const [availableDrops, setAvailableDrops] = useState<DropRow[]>([])
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
-    supabase
-      .from("swap_requests")
-      .select("id", { count: "exact", head: true })
-      .then((result) => {
-        setSwapCount(result.count ?? 0)
-      })
-    supabase
-      .from("drop_requests")
-      .select("id", { count: "exact", head: true })
-      .then((result) => {
-        setDropCount(result.count ?? 0)
-      })
+    const load = async () => {
+      const { data: userData } = await supabase.auth.getUser()
+      if (!userData.user) return
+      setCurrentUserId(userData.user.id)
+
+      const [swapRes, dropRes] = await Promise.all([
+        supabase
+          .from("swap_requests")
+          .select(
+            "id,shift_id,requested_by,target_user_id,status,reason,shifts:shifts (start_utc,end_utc,location_id,locations:locations (timezone,name))",
+          )
+          .or(`requested_by.eq.${userData.user.id},target_user_id.eq.${userData.user.id}`)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("drop_requests")
+          .select(
+            "id,shift_id,requested_by,claimed_by,status,reason,shifts:shifts (start_utc,end_utc,location_id,locations:locations (timezone,name))",
+          )
+          .eq("requested_by", userData.user.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("drop_requests")
+          .select(
+            "id,shift_id,requested_by,claimed_by,status,reason,shifts:shifts (start_utc,end_utc,location_id,locations:locations (timezone,name))",
+          )
+          .eq("status", "pending")
+          .neq("requested_by", userData.user.id)
+          .order("created_at", { ascending: false }),
+      ])
+
+      setSwapRequests((swapRes.data ?? []) as SwapRow[])
+      setDropRequests((dropRes.data ?? []) as DropRow[])
+      setAvailableDrops((availableRes.data ?? []) as DropRow[])
+      setSwapCount(swapRes.data?.length ?? 0)
+      setDropCount(dropRes.data?.length ?? 0)
+    }
+
+    void load()
+
     const channel = supabase
       .channel("swap-drop-updates")
       .on(
@@ -37,6 +98,7 @@ export default function StaffSwapRequestsPage() {
         { event: "*", schema: "public", table: "swap_requests" },
         () => {
           setRealtimeNotice("Swap request updated in realtime.")
+          void load()
         },
       )
       .on(
@@ -44,6 +106,7 @@ export default function StaffSwapRequestsPage() {
         { event: "*", schema: "public", table: "drop_requests" },
         () => {
           setRealtimeNotice("Drop request updated in realtime.")
+          void load()
         },
       )
       .subscribe()
@@ -53,7 +116,7 @@ export default function StaffSwapRequestsPage() {
     }
   }, [])
 
-  const handleAction = async (action: SwapAction) => {
+  const handleSwapAction = async (swap: SwapRow, action: SwapAction) => {
     if (action === "request" && swapCount >= 3) {
       setMessage("Swap limit reached (3 pending).")
       return
@@ -64,10 +127,10 @@ export default function StaffSwapRequestsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action,
-        status,
-        swapId: "swap-1",
-        shiftId: "shift-1",
-        targetUserId: "staff4-id",
+        status: swap.status,
+        swapId: swap.id,
+        shiftId: swap.shift_id,
+        targetUserId: swap.target_user_id,
       }),
     })
     const data = await response.json()
@@ -75,11 +138,32 @@ export default function StaffSwapRequestsPage() {
       setMessage(data.message ?? "Swap action failed.")
       return
     }
-    setStatus(data.nextStatus)
-    setMessage(`Status updated to ${data.nextStatus}.`)
   }
 
-  const handleDropAction = async (action: DropAction) => {
+  const handleCreateSwap = async () => {
+    if (!swapShiftId || !swapTargetId) {
+      setMessage("Enter shift and target user IDs.")
+      return
+    }
+    setMessage("")
+    const response = await fetch("/api/swaps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "request",
+        status: "pending_staff",
+        shiftId: swapShiftId,
+        targetUserId: swapTargetId,
+      }),
+    })
+    const data = await response.json()
+    if (!data.ok) {
+      setMessage(data.message ?? "Swap request failed.")
+      return
+    }
+  }
+
+  const handleDropAction = async (drop: DropRow, action: DropAction) => {
     if (action === "request" && dropCount >= 3) {
       setDropMessage("Drop limit reached (3 pending).")
       return
@@ -90,9 +174,9 @@ export default function StaffSwapRequestsPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action,
-        status: dropStatus,
-        dropId: "drop-1",
-        shiftId: "shift-2",
+        status: drop.status,
+        dropId: drop.id,
+        shiftId: drop.shift_id,
       }),
     })
     const data = await response.json()
@@ -100,46 +184,68 @@ export default function StaffSwapRequestsPage() {
       setDropMessage(data.message ?? "Drop action failed.")
       return
     }
-    setDropStatus(data.nextStatus)
-    setDropMessage(`Status updated to ${data.nextStatus}.`)
+  }
+
+  const handleCreateDrop = async () => {
+    if (!dropShiftId) {
+      setDropMessage("Enter a shift ID to drop.")
+      return
+    }
+    setDropMessage("")
+    const response = await fetch("/api/drop-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "request",
+        status: "pending",
+        shiftId: dropShiftId,
+      }),
+    })
+    const data = await response.json()
+    if (!data.ok) {
+      setDropMessage(data.message ?? "Drop request failed.")
+      return
+    }
   }
 
   return (
     <main className="flex min-h-[60vh] flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Swap Requests</h1>
-        <p className="text-sm text-muted-foreground">
-          Request a swap and track approval state.
-        </p>
+        <p className="text-sm text-muted-foreground">Request a swap and track approval state.</p>
       </div>
 
       <section className="rounded-lg border border-border bg-background p-5">
-        <div className="flex flex-col gap-2">
-          <div className="text-sm text-muted-foreground">Active request</div>
-          <div className="text-lg font-semibold">swap-1</div>
-          <div className="text-sm text-muted-foreground">Requested shift: 2025-01-10 (Manhattan Cafe)</div>
+        <div className="mb-3 text-sm text-muted-foreground">
+          Pending swaps: {swapCount} · Pending drops: {dropCount}
         </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-3">
+        <div className="grid gap-3 text-sm md:grid-cols-2">
+          <div>
+            <label className="text-xs uppercase tracking-wide text-muted-foreground">Shift ID</label>
+            <input
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              value={swapShiftId}
+              onChange={(event) => setSwapShiftId(event.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-wide text-muted-foreground">Target user ID</label>
+            <input
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              value={swapTargetId}
+              onChange={(event) => setSwapTargetId(event.target.value)}
+            />
+          </div>
+        </div>
+        <div className="mt-3">
           <button
             type="button"
             className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
-            onClick={() => handleAction("accept")}
+            onClick={handleCreateSwap}
           >
-            Accept by peer
+            Create swap request
           </button>
-          <button
-            type="button"
-            className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
-            onClick={() => handleAction("cancel")}
-          >
-            Cancel request
-          </button>
-          <span className="rounded-full border border-border px-3 py-1 text-xs uppercase tracking-wide text-muted-foreground">
-            {status}
-          </span>
         </div>
-
         {message && (
           <div className="mt-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
             {message}
@@ -154,55 +260,162 @@ export default function StaffSwapRequestsPage() {
       )}
 
       <section className="rounded-lg border border-border bg-background p-5">
-        <div className="flex flex-col gap-2">
-          <div className="text-sm text-muted-foreground">Drop request</div>
-          <div className="text-lg font-semibold">drop-1</div>
-          <div className="text-sm text-muted-foreground">Shift: 2025-01-11 (Brooklyn Deli)</div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
-            onClick={() => handleDropAction("request")}
-          >
-            Create drop
-          </button>
-          <button
-            type="button"
-            className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
-            onClick={() => handleDropAction("cancel")}
-          >
-            Cancel drop
-          </button>
-          <span className="rounded-full border border-border px-3 py-1 text-xs uppercase tracking-wide text-muted-foreground">
-            {dropStatus}
-          </span>
-        </div>
-
-        {dropMessage && (
-          <div className="mt-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-            {dropMessage}
+        <h2 className="text-lg font-semibold">Your swap requests</h2>
+        {swapRequests.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No swap requests yet.</p>
+        ) : (
+          <div className="mt-3 space-y-3 text-sm">
+            {swapRequests.map((swap) => (
+              <div key={swap.id} className="rounded-md border border-border bg-muted/10 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">{swap.id}</div>
+                  <span className="rounded-full border border-border px-2 py-0.5 text-xs uppercase tracking-wide text-muted-foreground">
+                    {swap.status}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Shift {swap.shift_id} · Location {swap.shifts?.locations?.name ?? swap.shifts?.location_id ?? "unknown"}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {swap.shifts?.start_utc && swap.shifts?.end_utc
+                    ? `${formatInTimeZone(new Date(swap.shifts.start_utc), swap.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")} → ${formatInTimeZone(new Date(swap.shifts.end_utc), swap.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")}`
+                    : "Unknown time"}
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {swap.status === "pending_staff" && swap.target_user_id === currentUserId && (
+                    <button
+                      type="button"
+                      className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
+                      onClick={() => handleSwapAction(swap, "accept")}
+                    >
+                      Accept
+                    </button>
+                  )}
+                  {(swap.status === "pending_staff" || swap.status === "pending_manager") &&
+                    swap.requested_by === currentUserId && (
+                      <button
+                        type="button"
+                        className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
+                        onClick={() => handleSwapAction(swap, "cancel")}
+                      >
+                        Cancel
+                      </button>
+                    )}
+                </div>
+                {(swap.status === "cancelled" || swap.status === "expired") && (
+                  <div className="mt-2 text-xs text-amber-600">
+                    This request was closed after a schedule update.
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </section>
 
       <section className="rounded-lg border border-border bg-background p-5">
-        <div className="flex flex-col gap-2">
-          <div className="text-sm text-muted-foreground">Available drop</div>
-          <div className="text-lg font-semibold">drop-2</div>
-          <div className="text-sm text-muted-foreground">Shift: 2025-01-12 (Downtown LA)</div>
+        <h2 className="text-lg font-semibold">Drop requests</h2>
+        <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
+          <div>
+            <label className="text-xs uppercase tracking-wide text-muted-foreground">Shift ID</label>
+            <input
+              className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+              value={dropShiftId}
+              onChange={(event) => setDropShiftId(event.target.value)}
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              type="button"
+              className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+              onClick={handleCreateDrop}
+            >
+              Create drop request
+            </button>
+          </div>
         </div>
+        {dropMessage && (
+          <div className="mt-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+            {dropMessage}
+          </div>
+        )}
+        {dropRequests.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">No drop requests yet.</p>
+        ) : (
+          <div className="mt-3 space-y-3 text-sm">
+            {dropRequests.map((drop) => (
+              <div key={drop.id} className="rounded-md border border-border bg-muted/10 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">{drop.id}</div>
+                  <span className="rounded-full border border-border px-2 py-0.5 text-xs uppercase tracking-wide text-muted-foreground">
+                    {drop.status}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Shift {drop.shift_id} · Location {drop.shifts?.locations?.name ?? drop.shifts?.location_id ?? "unknown"}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {drop.shifts?.start_utc && drop.shifts?.end_utc
+                    ? `${formatInTimeZone(new Date(drop.shifts.start_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")} → ${formatInTimeZone(new Date(drop.shifts.end_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")}`
+                    : "Unknown time"}
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {(drop.status === "pending" || drop.status === "claimed") && drop.requested_by === currentUserId && (
+                    <button
+                      type="button"
+                      className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
+                      onClick={() => handleDropAction(drop, "cancel")}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+                {(drop.status === "cancelled" || drop.status === "expired") && (
+                  <div className="mt-2 text-xs text-amber-600">
+                    This request was closed after a schedule update.
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            className="rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
-            onClick={() => handleDropAction("claim")}
-          >
-            Claim drop
-          </button>
-        </div>
+      <section className="rounded-lg border border-border bg-background p-5">
+        <h2 className="text-lg font-semibold">Available drops to claim</h2>
+        {availableDrops.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground">No open drops right now.</p>
+        ) : (
+          <div className="mt-3 space-y-3 text-sm">
+            {availableDrops.map((drop) => (
+              <div key={drop.id} className="rounded-md border border-border bg-muted/10 p-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">{drop.id}</div>
+                  <span className="rounded-full border border-border px-2 py-0.5 text-xs uppercase tracking-wide text-muted-foreground">
+                    {drop.status}
+                  </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Shift {drop.shift_id} · Location {drop.shifts?.locations?.name ?? drop.shifts?.location_id ?? "unknown"}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {drop.shifts?.start_utc && drop.shifts?.end_utc
+                    ? `${formatInTimeZone(new Date(drop.shifts.start_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")} → ${formatInTimeZone(new Date(drop.shifts.end_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")}`
+                    : "Unknown time"}
+                </div>
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
+                    onClick={() => handleDropAction(drop, "claim")}
+                  >
+                    Claim drop
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   )
