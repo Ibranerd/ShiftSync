@@ -13,6 +13,7 @@ import { formatInTimeZone } from "date-fns-tz"
 import {
   validateAssignment,
   type AvailabilityWindow,
+  type StaffCandidate,
   type Shift,
   type ShiftAssignment,
   type UserLocation,
@@ -141,6 +142,7 @@ export default function ManagerSchedulePage() {
   const [candidateAvailability, setCandidateAvailability] = useState<AvailabilityWindow[]>([])
   const [breakdown, setBreakdown] = useState<BreakdownItem[]>([])
   const [requiredSkills, setRequiredSkills] = useState<string[]>([])
+  const [staffCandidates, setStaffCandidates] = useState<StaffCandidate[]>([])
   const [editStart, setEditStart] = useState<string>("")
   const [editEnd, setEditEnd] = useState<string>("")
   const [editHeadcount, setEditHeadcount] = useState<number>(1)
@@ -177,6 +179,97 @@ export default function ManagerSchedulePage() {
 
     void loadReference()
   }, [candidateUserId, selectedLocationId])
+
+  useEffect(() => {
+    if (staff.length === 0) {
+      setStaffCandidates([])
+      return
+    }
+    const supabase = createSupabaseBrowserClient()
+    const staffIds = staff.map((member) => member.id)
+    const loadCandidates = async () => {
+      const [assignRes, skillRes, locRes, availRes] = await Promise.all([
+        supabase
+          .from("shift_assignments")
+          .select("id,shift_id,user_id,status,shifts:shifts (start_utc,end_utc)")
+          .in("user_id", staffIds)
+          .neq("status", "dropped"),
+        supabase.from("user_skills").select("user_id,skills:skills (id,name)").in("user_id", staffIds),
+        supabase.from("user_locations").select("user_id,location_id,certified_at,revoked_at").in("user_id", staffIds),
+        supabase
+          .from("availability_windows")
+          .select("user_id,day_of_week,start_local_time,end_local_time,exception_date,is_unavailable")
+          .in("user_id", staffIds),
+      ])
+
+      const assignmentsByUser = new Map<string, ShiftAssignment[]>()
+      assignRes.data?.forEach((row: any) => {
+        if (!row.user_id) return
+        const entry: ShiftAssignment = {
+          id: row.id,
+          shiftId: row.shift_id,
+          userId: row.user_id,
+          status: row.status,
+          shiftStartUtc: row.shifts?.start_utc,
+          shiftEndUtc: row.shifts?.end_utc,
+        }
+        const current = assignmentsByUser.get(row.user_id) ?? []
+        current.push(entry)
+        assignmentsByUser.set(row.user_id, current)
+      })
+
+      const skillsByUser = new Map<string, Skill[]>()
+      skillRes.data?.forEach((row: any) => {
+        if (!row.user_id) return
+        const entry: Skill = { id: row.skills?.id, name: row.skills?.name }
+        const current = skillsByUser.get(row.user_id) ?? []
+        if (entry.id) current.push(entry)
+        skillsByUser.set(row.user_id, current)
+      })
+
+      const locationsByUser = new Map<string, UserLocation[]>()
+      locRes.data?.forEach((row: any) => {
+        if (!row.user_id) return
+        const entry: UserLocation = {
+          userId: row.user_id,
+          locationId: row.location_id,
+          certifiedAt: row.certified_at,
+          revokedAt: row.revoked_at,
+        }
+        const current = locationsByUser.get(row.user_id) ?? []
+        current.push(entry)
+        locationsByUser.set(row.user_id, current)
+      })
+
+      const availabilityByUser = new Map<string, AvailabilityWindow[]>()
+      availRes.data?.forEach((row: any) => {
+        if (!row.user_id) return
+        const entry: AvailabilityWindow = {
+          userId: row.user_id,
+          dayOfWeek: row.day_of_week,
+          startLocalTime: row.start_local_time,
+          endLocalTime: row.end_local_time,
+          exceptionDate: row.exception_date,
+          isUnavailable: row.is_unavailable,
+        }
+        const current = availabilityByUser.get(row.user_id) ?? []
+        current.push(entry)
+        availabilityByUser.set(row.user_id, current)
+      })
+
+      const candidates: StaffCandidate[] = staffIds.map((userId) => ({
+        userId,
+        assignments: assignmentsByUser.get(userId) ?? [],
+        skills: skillsByUser.get(userId) ?? [],
+        locations: locationsByUser.get(userId) ?? [],
+        availability: availabilityByUser.get(userId) ?? [],
+      }))
+
+      setStaffCandidates(candidates)
+    }
+
+    void loadCandidates()
+  }, [staff])
 
   useEffect(() => {
     if (!selectedLocationId) return
@@ -331,6 +424,10 @@ export default function ManagerSchedulePage() {
   const locationTimezone =
     locations.find((location) => location.id === selectedLocationId)?.timezone ?? "UTC"
 
+  const staffNameById = useMemo(() => {
+    return new Map(staff.map((member) => [member.id, member.full_name]))
+  }, [staff])
+
   const filteredShifts = useMemo(() => {
     return shifts.filter((shift) => {
       const meetsHeadcount = (shift.headcount_needed ?? 1) >= minHeadcount
@@ -383,11 +480,15 @@ export default function ManagerSchedulePage() {
       candidateSkills,
       candidateLocations,
       candidateAvailability,
-      [],
+      staffCandidates,
     )
     setViolations(result.violations)
     setValidationMessage(result.valid ? "Shift is valid for assignment." : "Shift has validation issues.")
-    setSuggestions(result.suggestions.map((item) => item.userId))
+    setSuggestions(
+      result.suggestions
+        .filter((item) => item.userId !== candidateUserId)
+        .map((item) => staffNameById.get(item.userId) ?? item.userId),
+    )
     setBreakdown(buildWeeklyBreakdown(candidateAssignments, targetShift))
   }
 
