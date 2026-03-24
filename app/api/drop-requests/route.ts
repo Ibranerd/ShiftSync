@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { validateAssignment } from "@/lib/constraint-engine"
 import { loadAssignmentContext } from "@/lib/constraint-engine/server"
 import { canDropTransition, nextDropStatus, type DropAction, type DropStatus } from "@/lib/drops/state-machine"
+import { getUserRole } from "@/lib/supabase/auth"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
 export async function GET() {
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
 
   const { data: dropRow, error: dropError } = await supabase
     .from("drop_requests")
-    .select("id,shift_id,claimed_by,status")
+    .select("id,shift_id,requested_by,claimed_by,status")
     .eq("id", dropId)
     .single()
 
@@ -139,6 +140,60 @@ export async function POST(request: Request) {
         { ok: false, error: "validation_failed", violations: validation.violations },
         { status: 400 },
       )
+    }
+  }
+
+  if (action === "approve" || action === "reject") {
+    const role = getUserRole(userData.user)
+    if (role !== "admin" && role !== "manager") {
+      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 })
+    }
+    if (role === "manager") {
+      const { data: shiftRow, error: shiftError } = await supabase
+        .from("shifts")
+        .select("location_id")
+        .eq("id", dropRow.shift_id)
+        .single()
+      if (shiftError || !shiftRow) {
+        return NextResponse.json({ ok: false, error: "shift_not_found" }, { status: 404 })
+      }
+      const { count } = await supabase
+        .from("location_managers")
+        .select("user_id", { count: "exact", head: true })
+        .eq("user_id", userData.user.id)
+        .eq("location_id", shiftRow.location_id)
+      if ((count ?? 0) === 0) {
+        return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 })
+      }
+    }
+  }
+
+  if (action === "approve") {
+    const { data: updatedAssignments, error: updateError } = await supabase
+      .from("shift_assignments")
+      .update({
+        user_id: dropRow.claimed_by,
+        assigned_by: userData.user.id,
+      })
+      .eq("shift_id", dropRow.shift_id)
+      .eq("user_id", dropRow.requested_by)
+      .neq("status", "dropped")
+      .select()
+
+    if (updateError) {
+      return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 })
+    }
+
+    if (!updatedAssignments || updatedAssignments.length === 0) {
+      const { error: insertError } = await supabase.from("shift_assignments").insert({
+        shift_id: dropRow.shift_id,
+        user_id: dropRow.claimed_by,
+        assigned_by: userData.user.id,
+        status: "assigned",
+      })
+      if (insertError) {
+        return NextResponse.json({ ok: false, error: insertError.message }, { status: 500 })
+      }
     }
   }
 
