@@ -12,7 +12,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400 })
   }
 
-  const action = body.action as "publish" | "unpublish" | "create" | "publish_week" | "unpublish_week" | undefined
+  const action =
+    (body.action as
+      | "publish"
+      | "unpublish"
+      | "create"
+      | "publish_week"
+      | "unpublish_week"
+      | "update"
+      | undefined)
   const shiftId = body.shiftId as string | undefined
   const overrideReason = body.overrideReason as string | undefined
 
@@ -45,6 +53,31 @@ export async function POST(request: Request) {
 
     if (insertError) {
       return NextResponse.json({ ok: false, error: insertError.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ ok: true, shift: data })
+  }
+
+  if (action === "update") {
+    const payload = body.shift
+    if (!shiftId || !payload?.start_utc || !payload?.end_utc) {
+      return NextResponse.json({ ok: false, error: "missing_shift_payload" }, { status: 400 })
+    }
+    const { error: updateError, data } = await supabase
+      .from("shifts")
+      .update({
+        start_utc: payload.start_utc,
+        end_utc: payload.end_utc,
+        required_skill_ids: payload.required_skill_ids ?? [],
+        headcount_needed: payload.headcount_needed ?? 1,
+        is_published: payload.is_published ?? false,
+      })
+      .eq("id", shiftId)
+      .select()
+      .single()
+
+    if (updateError) {
+      return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 })
     }
 
     return NextResponse.json({ ok: true, shift: data })

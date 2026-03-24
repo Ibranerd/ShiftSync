@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { validateAssignment } from "@/lib/constraint-engine"
+import { loadAssignmentContext } from "@/lib/constraint-engine/server"
 import { canDropTransition, nextDropStatus, type DropAction, type DropStatus } from "@/lib/drops/state-machine"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
@@ -73,6 +75,71 @@ export async function POST(request: Request) {
 
   if (!dropId) {
     return NextResponse.json({ ok: false, error: "missing_drop_id" }, { status: 400 })
+  }
+
+  const { data: dropRow, error: dropError } = await supabase
+    .from("drop_requests")
+    .select("id,shift_id,claimed_by,status")
+    .eq("id", dropId)
+    .single()
+
+  if (dropError || !dropRow) {
+    return NextResponse.json({ ok: false, error: "drop_not_found" }, { status: 404 })
+  }
+
+  if (action === "claim") {
+    const { context, error: contextError } = await loadAssignmentContext(
+      supabase,
+      userData.user.id,
+      dropRow.shift_id,
+    )
+    if (contextError || !context) {
+      return NextResponse.json({ ok: false, error: contextError ?? "shift_not_found" }, { status: 404 })
+    }
+    const validation = await validateAssignment(
+      userData.user.id,
+      context.targetShift,
+      context.existingAssignments,
+      context.userSkills,
+      context.userLocations,
+      context.availabilityWindows,
+      [],
+    )
+    if (!validation.valid) {
+      return NextResponse.json(
+        { ok: false, error: "validation_failed", violations: validation.violations },
+        { status: 400 },
+      )
+    }
+  }
+
+  if (action === "approve") {
+    if (!dropRow.claimed_by) {
+      return NextResponse.json({ ok: false, error: "missing_claimed_by" }, { status: 400 })
+    }
+    const { context, error: contextError } = await loadAssignmentContext(
+      supabase,
+      dropRow.claimed_by,
+      dropRow.shift_id,
+    )
+    if (contextError || !context) {
+      return NextResponse.json({ ok: false, error: contextError ?? "shift_not_found" }, { status: 404 })
+    }
+    const validation = await validateAssignment(
+      dropRow.claimed_by,
+      context.targetShift,
+      context.existingAssignments,
+      context.userSkills,
+      context.userLocations,
+      context.availabilityWindows,
+      [],
+    )
+    if (!validation.valid) {
+      return NextResponse.json(
+        { ok: false, error: "validation_failed", violations: validation.violations },
+        { status: 400 },
+      )
+    }
   }
 
   const updatePayload: Record<string, unknown> = {

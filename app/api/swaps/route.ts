@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server"
+import { validateAssignment } from "@/lib/constraint-engine"
+import { loadAssignmentContext } from "@/lib/constraint-engine/server"
 import { canTransition, nextStatus, type SwapAction, type SwapStatus } from "@/lib/swaps/state-machine"
 import { createSupabaseServerClient } from "@/lib/supabase/server"
 
@@ -44,6 +46,25 @@ export async function POST(request: Request) {
     if (!shiftId || !targetUserId) {
       return NextResponse.json({ ok: false, error: "missing_shift_or_target" }, { status: 400 })
     }
+    const { context, error: contextError } = await loadAssignmentContext(supabase, targetUserId, shiftId)
+    if (contextError || !context) {
+      return NextResponse.json({ ok: false, error: contextError ?? "shift_not_found" }, { status: 404 })
+    }
+    const validation = await validateAssignment(
+      targetUserId,
+      context.targetShift,
+      context.existingAssignments,
+      context.userSkills,
+      context.userLocations,
+      context.availabilityWindows,
+      [],
+    )
+    if (!validation.valid) {
+      return NextResponse.json(
+        { ok: false, error: "validation_failed", violations: validation.violations },
+        { status: 400 },
+      )
+    }
     const { count } = await supabase
       .from("swap_requests")
       .select("id", { count: "exact", head: true })
@@ -71,6 +92,42 @@ export async function POST(request: Request) {
 
   if (!swapId) {
     return NextResponse.json({ ok: false, error: "missing_swap_id" }, { status: 400 })
+  }
+
+  const { data: swapRow, error: swapError } = await supabase
+    .from("swap_requests")
+    .select("id,shift_id,target_user_id,status")
+    .eq("id", swapId)
+    .single()
+
+  if (swapError || !swapRow) {
+    return NextResponse.json({ ok: false, error: "swap_not_found" }, { status: 404 })
+  }
+
+  if ((action === "accept" || action === "approve") && swapRow.target_user_id) {
+    const { context, error: contextError } = await loadAssignmentContext(
+      supabase,
+      swapRow.target_user_id,
+      swapRow.shift_id,
+    )
+    if (contextError || !context) {
+      return NextResponse.json({ ok: false, error: contextError ?? "shift_not_found" }, { status: 404 })
+    }
+    const validation = await validateAssignment(
+      swapRow.target_user_id,
+      context.targetShift,
+      context.existingAssignments,
+      context.userSkills,
+      context.userLocations,
+      context.availabilityWindows,
+      [],
+    )
+    if (!validation.valid) {
+      return NextResponse.json(
+        { ok: false, error: "validation_failed", violations: validation.violations },
+        { status: 400 },
+      )
+    }
   }
 
   const { data, error } = await supabase
