@@ -49,6 +49,40 @@ export default function ManagerSwapsPage() {
   const [swapCount, setSwapCount] = useState(0)
   const [dropCount, setDropCount] = useState(0)
 
+  const formatSwapError = (error: string | undefined, fallback: string) => {
+    switch (error) {
+      case "invalid_transition":
+        return "That swap action is no longer valid."
+      case "conflict":
+      case "assignment_conflict":
+        return "This swap was just handled by someone else. Refresh to see the latest status."
+      case "forbidden":
+        return "You are not authorized to approve swaps for this location."
+      case "swap_not_found":
+        return "Swap request not found."
+      default:
+        return fallback
+    }
+  }
+
+  const formatDropError = (error: string | undefined, fallback: string) => {
+    switch (error) {
+      case "invalid_transition":
+        return "That drop action is no longer valid."
+      case "conflict":
+      case "assignment_conflict":
+        return "This drop was just handled by someone else. Refresh to see the latest status."
+      case "forbidden":
+        return "You are not authorized to approve drops for this location."
+      case "drop_not_found":
+        return "Drop request not found."
+      case "missing_claimed_by":
+        return "Drop must be claimed before approval."
+      default:
+        return fallback
+    }
+  }
+
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
     const load = async () => {
@@ -115,7 +149,7 @@ export default function ManagerSwapsPage() {
     })
     const data = await response.json()
     if (!data.ok) {
-      setMessage(data.message ?? "Swap action failed.")
+      setMessage(formatSwapError(data.error, data.message ?? "Swap action failed."))
       return
     }
   }
@@ -133,7 +167,7 @@ export default function ManagerSwapsPage() {
     })
     const data = await response.json()
     if (!data.ok) {
-      setDropMessage(data.message ?? "Drop action failed.")
+      setDropMessage(formatDropError(data.error, data.message ?? "Drop action failed."))
       return
     }
   }

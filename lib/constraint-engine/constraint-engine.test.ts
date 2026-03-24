@@ -39,11 +39,25 @@ describe("constraint engine rules", () => {
     expect(violations[0]?.rule).toBe("DOUBLE_BOOK")
   })
 
+  it("ignores dropped overlaps", () => {
+    const violations = ruleNoOverlap(baseShift, [
+      makeAssignment("2025-01-10T18:00:00.000Z", "2025-01-10T23:00:00.000Z", "dropped"),
+    ])
+    expect(violations).toHaveLength(0)
+  })
+
   it("blocks rest gap under 10 hours", () => {
     const violations = ruleRestGap(baseShift, [
       makeAssignment("2025-01-10T04:00:00.000Z", "2025-01-10T08:00:00.000Z"),
     ])
     expect(violations[0]?.rule).toBe("REST_GAP")
+  })
+
+  it("ignores dropped shifts when checking rest gap", () => {
+    const violations = ruleRestGap(baseShift, [
+      makeAssignment("2025-01-10T04:00:00.000Z", "2025-01-10T08:00:00.000Z", "dropped"),
+    ])
+    expect(violations).toHaveLength(0)
   })
 
   it("blocks missing required skills", () => {
@@ -220,6 +234,19 @@ describe("constraint engine rules", () => {
     ]
     const violations = ruleConsecutiveDays(baseShift, assignments)
     expect(violations[0]?.rule).toBe("CONSECUTIVE_DAYS_7")
+  })
+
+  it("warns on sixth consecutive day", () => {
+    const assignments = [
+      makeAssignment("2025-01-04T12:00:00.000Z", "2025-01-04T18:00:00.000Z"),
+      makeAssignment("2025-01-05T12:00:00.000Z", "2025-01-05T18:00:00.000Z"),
+      makeAssignment("2025-01-06T12:00:00.000Z", "2025-01-06T18:00:00.000Z"),
+      makeAssignment("2025-01-07T12:00:00.000Z", "2025-01-07T18:00:00.000Z"),
+      makeAssignment("2025-01-08T12:00:00.000Z", "2025-01-08T18:00:00.000Z"),
+    ]
+    const violations = ruleConsecutiveDays(baseShift, assignments)
+    expect(violations[0]?.rule).toBe("CONSECUTIVE_DAYS_6")
+    expect(violations[0]?.severity).toBe("warn")
   })
 
   it("allows manager override for seventh consecutive day", async () => {

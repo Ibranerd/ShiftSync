@@ -61,6 +61,56 @@ export default function StaffSwapRequestsPage() {
     }>
   >([])
 
+  const formatSwapError = (error: string | undefined, fallback: string) => {
+    switch (error) {
+      case "swap_limit_reached":
+        return "You already have 3 pending swap requests."
+      case "assignment_not_found":
+        return "That assignment is no longer available."
+      case "assignment_not_owned":
+        return "You can only swap your own active assignment."
+      case "validation_failed":
+        return "The target staff member is not eligible for this shift."
+      case "invalid_transition":
+        return "That swap action is no longer valid."
+      case "conflict":
+      case "assignment_conflict":
+        return "This swap was just handled by someone else. Refresh to see the latest status."
+      case "forbidden":
+        return "You do not have permission to perform this action."
+      case "missing_assignment":
+        return "Please select a valid assignment."
+      case "missing_target_user":
+        return "Select a target staff member."
+      default:
+        return fallback
+    }
+  }
+
+  const formatDropError = (error: string | undefined, fallback: string) => {
+    switch (error) {
+      case "drop_limit_reached":
+        return "You already have 3 pending drop requests."
+      case "assignment_not_found":
+        return "That assignment is no longer available."
+      case "assignment_not_owned":
+        return "You can only drop your own active assignment."
+      case "validation_failed":
+        return "You are not eligible to claim this drop."
+      case "invalid_transition":
+        return "That drop action is no longer valid."
+      case "conflict":
+      case "assignment_conflict":
+        return "This drop was just handled by someone else. Refresh to see the latest status."
+      case "missing_claimed_by":
+        return "This drop must be claimed before approval."
+      case "missing_assignment":
+        return "Please select a valid assignment."
+      default:
+        return fallback
+    }
+  }
+
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
     const load = async () => {
@@ -170,7 +220,7 @@ export default function StaffSwapRequestsPage() {
     })
     const data = await response.json()
     if (!data.ok) {
-      setMessage(data.message ?? "Swap action failed.")
+      setMessage(formatSwapError(data.error, data.message ?? "Swap action failed."))
       return
     }
   }
@@ -193,7 +243,7 @@ export default function StaffSwapRequestsPage() {
     })
     const data = await response.json()
     if (!data.ok) {
-      setMessage(data.message ?? "Swap request failed.")
+      setMessage(formatSwapError(data.error, data.message ?? "Swap request failed."))
       return
     }
   }
@@ -216,7 +266,7 @@ export default function StaffSwapRequestsPage() {
     })
     const data = await response.json()
     if (!data.ok) {
-      setDropMessage(data.message ?? "Drop action failed.")
+      setDropMessage(formatDropError(data.error, data.message ?? "Drop action failed."))
       return
     }
   }
@@ -238,7 +288,7 @@ export default function StaffSwapRequestsPage() {
     })
     const data = await response.json()
     if (!data.ok) {
-      setDropMessage(data.message ?? "Drop request failed.")
+      setDropMessage(formatDropError(data.error, data.message ?? "Drop request failed."))
       return
     }
   }
