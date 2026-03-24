@@ -37,6 +37,12 @@ export async function POST(request: Request) {
     if (!payload?.location_id || !payload?.start_utc || !payload?.end_utc) {
       return NextResponse.json({ ok: false, error: "missing_shift_payload" }, { status: 400 })
     }
+    if (!Array.isArray(payload.required_skill_ids) || payload.required_skill_ids.length === 0) {
+      return NextResponse.json({ ok: false, error: "missing_required_skills" }, { status: 400 })
+    }
+    if (typeof payload.headcount_needed !== "number" || payload.headcount_needed < 1) {
+      return NextResponse.json({ ok: false, error: "invalid_headcount" }, { status: 400 })
+    }
 
     const { error: insertError, data } = await supabase
       .from("shifts")

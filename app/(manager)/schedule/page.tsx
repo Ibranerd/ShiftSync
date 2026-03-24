@@ -481,6 +481,14 @@ export default function ManagerSchedulePage() {
       setCreateMessage("Start and end times are required.")
       return
     }
+    if (requiredSkills.length === 0) {
+      setCreateMessage("Select at least one required skill.")
+      return
+    }
+    if (Number.isNaN(newHeadcount) || newHeadcount < 1) {
+      setCreateMessage("Headcount must be at least 1.")
+      return
+    }
     setCreateMessage("")
     const response = await fetch("/api/shifts", {
       method: "POST",
