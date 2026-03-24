@@ -135,17 +135,6 @@ export default function ManagerStaffPage() {
     }
   }, [staff, selectedStaffId])
 
-  useEffect(() => {
-    if (!selectedLocationId && locations.length > 0) {
-      setSelectedLocationId(locations[0].id)
-      return
-    }
-
-    if (selectedLocationId && !locations.some((location) => location.id === selectedLocationId) && locations.length > 0) {
-      setSelectedLocationId(locations[0].id)
-    }
-  }, [locations, selectedLocationId])
-
   const hoursByUser = useMemo(() => {
     const map = new Map<string, number>()
     weeklyHours.forEach((row) => {
