@@ -1,4 +1,4 @@
-# ShiftSync Test Plan (PrioritySoft Validation)
+# ShiftSync Test Plan
 
 ## Seeded Test Accounts
 Admin:
