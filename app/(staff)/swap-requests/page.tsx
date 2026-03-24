@@ -57,36 +57,40 @@ export default function StaffSwapRequestsPage() {
       if (!userData.user) return
       setCurrentUserId(userData.user.id)
 
-      const [swapRes, dropRes] = await Promise.all([
+      const [swapRes, dropRes, availableRes] = await Promise.all([
         supabase
           .from("swap_requests")
           .select(
-            "id,shift_id,requested_by,target_user_id,status,reason,shifts:shifts (start_utc,end_utc,location_id,locations:locations (timezone,name))",
+            "id,shift_id,requested_by,target_user_id,status,reason,shifts:shifts (start_utc,end_utc,location_id,is_published,locations:locations (timezone,name))",
           )
           .or(`requested_by.eq.${userData.user.id},target_user_id.eq.${userData.user.id}`)
           .order("created_at", { ascending: false }),
         supabase
           .from("drop_requests")
           .select(
-            "id,shift_id,requested_by,claimed_by,status,reason,shifts:shifts (start_utc,end_utc,location_id,locations:locations (timezone,name))",
+            "id,shift_id,requested_by,claimed_by,status,reason,shifts:shifts (start_utc,end_utc,location_id,is_published,locations:locations (timezone,name))",
           )
           .eq("requested_by", userData.user.id)
           .order("created_at", { ascending: false }),
         supabase
           .from("drop_requests")
           .select(
-            "id,shift_id,requested_by,claimed_by,status,reason,shifts:shifts (start_utc,end_utc,location_id,locations:locations (timezone,name))",
+            "id,shift_id,requested_by,claimed_by,status,reason,shifts:shifts (start_utc,end_utc,location_id,is_published,locations:locations (timezone,name))",
           )
           .eq("status", "pending")
           .neq("requested_by", userData.user.id)
           .order("created_at", { ascending: false }),
       ])
 
-      setSwapRequests((swapRes.data ?? []) as SwapRow[])
-      setDropRequests((dropRes.data ?? []) as DropRow[])
-      setAvailableDrops((availableRes.data ?? []) as DropRow[])
-      setSwapCount(swapRes.data?.length ?? 0)
-      setDropCount(dropRes.data?.length ?? 0)
+      const publishedSwaps = (swapRes.data ?? []).filter((row: any) => row.shifts?.is_published)
+      const publishedDrops = (dropRes.data ?? []).filter((row: any) => row.shifts?.is_published)
+      const publishedAvailableDrops = (availableRes.data ?? []).filter((row: any) => row.shifts?.is_published)
+
+      setSwapRequests(publishedSwaps as SwapRow[])
+      setDropRequests(publishedDrops as DropRow[])
+      setAvailableDrops(publishedAvailableDrops as DropRow[])
+      setSwapCount(publishedSwaps.length)
+      setDropCount(publishedDrops.length)
     }
 
     void load()
