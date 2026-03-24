@@ -54,6 +54,7 @@ type BreakdownItem = {
   hours: number
   startUtc: string
   endUtc: string
+  pushesOvertime?: boolean
 }
 
 type AuditEntry = {
@@ -90,6 +91,19 @@ function buildWeeklyBreakdown(assignments: ShiftAssignment[], targetShift?: Shif
     hours: Number(hoursBetween(targetShift.startUtc, targetShift.endUtc).toFixed(2)),
     startUtc: targetShift.startUtc,
     endUtc: targetShift.endUtc,
+  })
+
+  rows.sort((a, b) => new Date(a.startUtc).getTime() - new Date(b.startUtc).getTime())
+
+  let cumulative = 0
+  let flagged = false
+  rows.forEach((row) => {
+    const before = cumulative
+    cumulative += row.hours
+    if (!flagged && before < 40 && cumulative >= 40) {
+      row.pushesOvertime = true
+      flagged = true
+    }
   })
 
   return rows
@@ -1039,9 +1053,23 @@ export default function ManagerSchedulePage() {
         ) : (
           <div className="mt-3 space-y-2 text-sm">
             {breakdown.map((item) => (
-              <div key={`${item.label}-${item.startUtc}`} className="flex items-center justify-between rounded-md border border-border bg-muted/10 px-3 py-2">
+              <div
+                key={`${item.label}-${item.startUtc}`}
+                className={`flex items-center justify-between rounded-md border px-3 py-2 ${
+                  item.pushesOvertime
+                    ? "border-amber-300 bg-amber-50"
+                    : "border-border bg-muted/10"
+                }`}
+              >
                 <div>
-                  <div className="font-medium">{item.label}</div>
+                  <div className="flex items-center gap-2 font-medium">
+                    <span>{item.label}</span>
+                    {item.pushesOvertime && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                        Overtime Trigger
+                      </span>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     {formatRange(item.startUtc, item.endUtc, locationTimezone)}
                   </div>
