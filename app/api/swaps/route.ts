@@ -12,14 +12,20 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null)
   if (!body) {
-    return NextResponse.json({ ok: false, error: "invalid_payload" }, { status: 400 })
+    return NextResponse.json(
+      { ok: false, error: "invalid_payload", message: "Request body is required." },
+      { status: 400 },
+    )
   }
 
   const action = body.action as SwapAction | undefined
   const status = body.status as SwapStatus | undefined
 
   if (!action || !status) {
-    return NextResponse.json({ ok: false, error: "missing_action_or_status" }, { status: 400 })
+    return NextResponse.json(
+      { ok: false, error: "missing_action_or_status", message: "Action and status are required." },
+      { status: 400 },
+    )
   }
 
   if (!canTransition(status, action)) {
@@ -35,7 +41,10 @@ export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient()
   const { data: userData } = await supabase.auth.getUser()
   if (!userData.user) {
-    return NextResponse.json({ ok: false, error: "unauthenticated" }, { status: 401 })
+    return NextResponse.json(
+      { ok: false, error: "unauthenticated", message: "Sign in required." },
+      { status: 401 },
+    )
   }
 
   const swapId = body.swapId as string | undefined
@@ -45,11 +54,17 @@ export async function POST(request: Request) {
 
   if (action === "request") {
     if (!shiftId || !targetUserId) {
-      return NextResponse.json({ ok: false, error: "missing_shift_or_target" }, { status: 400 })
+      return NextResponse.json(
+        { ok: false, error: "missing_shift_or_target", message: "Shift and target staff are required." },
+        { status: 400 },
+      )
     }
     const { context, error: contextError } = await loadAssignmentContext(supabase, targetUserId, shiftId)
     if (contextError || !context) {
-      return NextResponse.json({ ok: false, error: contextError ?? "shift_not_found" }, { status: 404 })
+      return NextResponse.json(
+        { ok: false, error: contextError ?? "shift_not_found", message: "Shift not found." },
+        { status: 404 },
+      )
     }
     const validation = await validateAssignment(
       targetUserId,
@@ -62,7 +77,7 @@ export async function POST(request: Request) {
     )
     if (!validation.valid) {
       return NextResponse.json(
-        { ok: false, error: "validation_failed", violations: validation.violations },
+        { ok: false, error: "validation_failed", message: "Target staff is not eligible.", violations: validation.violations },
         { status: 400 },
       )
     }
@@ -72,7 +87,10 @@ export async function POST(request: Request) {
       .eq("requested_by", userData.user.id)
       .in("status", ["pending_staff", "pending_manager"])
     if ((count ?? 0) >= 3) {
-      return NextResponse.json({ ok: false, error: "swap_limit_reached" }, { status: 400 })
+      return NextResponse.json(
+        { ok: false, error: "swap_limit_reached", message: "Swap request limit reached." },
+        { status: 400 },
+      )
     }
     const { data, error } = await supabase
       .from("swap_requests")
@@ -86,13 +104,13 @@ export async function POST(request: Request) {
       .select()
       .single()
     if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+      return NextResponse.json({ ok: false, error: "swap_create_failed", message: error.message }, { status: 500 })
     }
     return NextResponse.json({ ok: true, nextStatus: data.status, swap: data })
   }
 
   if (!swapId) {
-    return NextResponse.json({ ok: false, error: "missing_swap_id" }, { status: 400 })
+    return NextResponse.json({ ok: false, error: "missing_swap_id", message: "Swap id is required." }, { status: 400 })
   }
 
   const { data: swapRow, error: swapError } = await supabase
@@ -102,7 +120,7 @@ export async function POST(request: Request) {
     .single()
 
   if (swapError || !swapRow) {
-    return NextResponse.json({ ok: false, error: "swap_not_found" }, { status: 404 })
+    return NextResponse.json({ ok: false, error: "swap_not_found", message: "Swap not found." }, { status: 404 })
   }
 
   if ((action === "accept" || action === "approve") && swapRow.target_user_id) {
@@ -112,7 +130,10 @@ export async function POST(request: Request) {
       swapRow.shift_id,
     )
     if (contextError || !context) {
-      return NextResponse.json({ ok: false, error: contextError ?? "shift_not_found" }, { status: 404 })
+      return NextResponse.json(
+        { ok: false, error: contextError ?? "shift_not_found", message: "Shift not found." },
+        { status: 404 },
+      )
     }
     const validation = await validateAssignment(
       swapRow.target_user_id,
@@ -125,16 +146,27 @@ export async function POST(request: Request) {
     )
     if (!validation.valid) {
       return NextResponse.json(
-        { ok: false, error: "validation_failed", violations: validation.violations },
+        { ok: false, error: "validation_failed", message: "Target staff is not eligible.", violations: validation.violations },
         { status: 400 },
       )
     }
   }
 
   if (action === "approve" || action === "reject") {
+    const { data: lockOk, error: lockError } = await supabase.rpc("lock_swap_approval", { p_swap_id: swapId })
+    if (lockError) {
+      return NextResponse.json({ ok: false, error: "lock_failed", message: lockError.message }, { status: 500 })
+    }
+    if (!lockOk) {
+      return NextResponse.json(
+        { ok: false, error: "conflict", message: "Swap is being handled by another manager." },
+        { status: 409 },
+      )
+    }
+
     const role = getUserRole(userData.user)
     if (role !== "admin" && role !== "manager") {
-      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 })
+      return NextResponse.json({ ok: false, error: "forbidden", message: "Manager access required." }, { status: 403 })
     }
     if (role === "manager") {
       const { data: shiftRow, error: shiftError } = await supabase
@@ -143,7 +175,7 @@ export async function POST(request: Request) {
         .eq("id", swapRow.shift_id)
         .single()
       if (shiftError || !shiftRow) {
-        return NextResponse.json({ ok: false, error: "shift_not_found" }, { status: 404 })
+        return NextResponse.json({ ok: false, error: "shift_not_found", message: "Shift not found." }, { status: 404 })
       }
       const { count } = await supabase
         .from("location_managers")
@@ -151,14 +183,17 @@ export async function POST(request: Request) {
         .eq("user_id", userData.user.id)
         .eq("location_id", shiftRow.location_id)
       if ((count ?? 0) === 0) {
-        return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 })
+        return NextResponse.json({ ok: false, error: "forbidden", message: "Not authorized for this location." }, { status: 403 })
       }
     }
   }
 
   if (action === "approve") {
     if (!swapRow.target_user_id) {
-      return NextResponse.json({ ok: false, error: "missing_target_user" }, { status: 400 })
+      return NextResponse.json(
+        { ok: false, error: "missing_target_user", message: "Swap target is required." },
+        { status: 400 },
+      )
     }
     const { data: updatedAssignments, error: updateError } = await supabase
       .from("shift_assignments")
@@ -172,7 +207,7 @@ export async function POST(request: Request) {
       .select()
 
     if (updateError) {
-      return NextResponse.json({ ok: false, error: updateError.message }, { status: 500 })
+      return NextResponse.json({ ok: false, error: "assignment_update_failed", message: updateError.message }, { status: 500 })
     }
 
     if (!updatedAssignments || updatedAssignments.length === 0) {
@@ -183,7 +218,7 @@ export async function POST(request: Request) {
         status: "assigned",
       })
       if (insertError) {
-        return NextResponse.json({ ok: false, error: insertError.message }, { status: 500 })
+        return NextResponse.json({ ok: false, error: "assignment_insert_failed", message: insertError.message }, { status: 500 })
       }
     }
   }
@@ -196,7 +231,7 @@ export async function POST(request: Request) {
     .single()
 
   if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: false, error: "swap_update_failed", message: error.message }, { status: 500 })
   }
 
   return NextResponse.json({
