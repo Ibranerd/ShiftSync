@@ -55,6 +55,7 @@ type BreakdownItem = {
   startUtc: string
   endUtc: string
   pushesOvertime?: boolean
+  overOvertime?: boolean
 }
 
 type AuditEntry = {
@@ -103,6 +104,10 @@ function buildWeeklyBreakdown(assignments: ShiftAssignment[], targetShift?: Shif
     if (!flagged && before < 40 && cumulative >= 40) {
       row.pushesOvertime = true
       flagged = true
+      return
+    }
+    if (flagged && cumulative > 40) {
+      row.overOvertime = true
     }
   })
 
@@ -1058,7 +1063,9 @@ export default function ManagerSchedulePage() {
                 className={`flex items-center justify-between rounded-md border px-3 py-2 ${
                   item.pushesOvertime
                     ? "border-amber-300 bg-amber-50"
-                    : "border-border bg-muted/10"
+                    : item.overOvertime
+                      ? "border-amber-200 bg-amber-50/60"
+                      : "border-border bg-muted/10"
                 }`}
               >
                 <div>
@@ -1067,6 +1074,11 @@ export default function ManagerSchedulePage() {
                     {item.pushesOvertime && (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
                         Overtime Trigger
+                      </span>
+                    )}
+                    {item.overOvertime && (
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                        Overtime
                       </span>
                     )}
                   </div>
