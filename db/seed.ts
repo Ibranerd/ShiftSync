@@ -374,8 +374,9 @@ async function seed() {
     throw new Error(`Failed to fetch existing shifts: ${existingShiftsError.message}`)
   }
 
+  const normalizeTimestamp = (value: string) => new Date(value).toISOString()
   const shiftKey = (row: { location_id: string; start_utc: string; end_utc: string }) =>
-    `${row.location_id}:${row.start_utc}:${row.end_utc}`
+    `${row.location_id}:${normalizeTimestamp(row.start_utc)}:${normalizeTimestamp(row.end_utc)}`
 
   const shiftByKey = new Map<string, { id: string; location_id: string; start_utc: string; end_utc: string }>(
     (existingShifts ?? []).map((shift) => [shiftKey(shift), shift]),
