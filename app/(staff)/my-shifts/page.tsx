@@ -55,6 +55,19 @@ export default function StaffMyShiftsPage() {
   const [readFilter, setReadFilter] = useState<"all" | "unread" | "read">("all")
   const [typeFilter, setTypeFilter] = useState<"all" | NotificationType>("all")
 
+  const mapPublishedAssignments = (rows: any[] | null | undefined) =>
+    (rows ?? [])
+      .filter((row) => row.shifts?.is_published)
+      .map((row: any) => ({
+        id: row.id,
+        start_utc: row.shifts?.start_utc,
+        end_utc: row.shifts?.end_utc,
+        location_id: row.shifts?.location_id,
+        location_timezone: row.shifts?.locations?.timezone ?? "UTC",
+        location_name: row.shifts?.locations?.name ?? row.shifts?.location_id,
+        is_published: row.shifts?.is_published,
+      }))
+
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
 
@@ -71,17 +84,7 @@ export default function StaffMyShiftsPage() {
         .eq("user_id", userData.user.id)
         .neq("status", "dropped")
 
-      setAssignments(
-        (assignmentRows ?? []).map((row: any) => ({
-          id: row.id,
-          start_utc: row.shifts?.start_utc,
-          end_utc: row.shifts?.end_utc,
-          location_id: row.shifts?.location_id,
-          location_timezone: row.shifts?.locations?.timezone ?? "UTC",
-          location_name: row.shifts?.locations?.name ?? row.shifts?.location_id,
-          is_published: row.shifts?.is_published,
-        })),
-      )
+      setAssignments(mapPublishedAssignments(assignmentRows))
 
       const [skillRes, userSkillRes] = await Promise.all([
         supabase.from("skills").select("id,name").order("name"),
@@ -138,17 +141,7 @@ export default function StaffMyShiftsPage() {
               .eq("user_id", userData.user.id)
               .neq("status", "dropped")
               .then(({ data: rows }) => {
-                setAssignments(
-                  (rows ?? []).map((row: any) => ({
-                    id: row.id,
-                    start_utc: row.shifts?.start_utc,
-                    end_utc: row.shifts?.end_utc,
-                    location_id: row.shifts?.location_id,
-                    location_timezone: row.shifts?.locations?.timezone ?? "UTC",
-                    location_name: row.shifts?.locations?.name ?? row.shifts?.location_id,
-                    is_published: row.shifts?.is_published,
-                  })),
-                )
+                setAssignments(mapPublishedAssignments(rows))
               })
           },
         )
@@ -163,17 +156,7 @@ export default function StaffMyShiftsPage() {
               .eq("user_id", userData.user.id)
               .neq("status", "dropped")
               .then(({ data: rows }) => {
-                setAssignments(
-                  (rows ?? []).map((row: any) => ({
-                    id: row.id,
-                    start_utc: row.shifts?.start_utc,
-                    end_utc: row.shifts?.end_utc,
-                    location_id: row.shifts?.location_id,
-                    location_timezone: row.shifts?.locations?.timezone ?? "UTC",
-                    location_name: row.shifts?.locations?.name ?? row.shifts?.location_id,
-                    is_published: row.shifts?.is_published,
-                  })),
-                )
+                setAssignments(mapPublishedAssignments(rows))
               })
           },
         )
