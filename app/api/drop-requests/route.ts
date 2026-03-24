@@ -53,15 +53,34 @@ export async function POST(request: Request) {
 
   const dropId = body.dropId as string | undefined
   const shiftId = body.shiftId as string | undefined
+  const assignmentId = body.assignmentId as string | undefined
   const reason = body.reason as string | undefined
 
   if (action === "request") {
-    if (!shiftId) {
+    if (!assignmentId) {
       return NextResponse.json(
-        { ok: false, error: "missing_shift", message: "Shift is required." },
+        { ok: false, error: "missing_assignment", message: "Assignment is required." },
         { status: 400 },
       )
     }
+    const { data: assignmentRow, error: assignmentError } = await supabase
+      .from("shift_assignments")
+      .select("id,shift_id,user_id,status")
+      .eq("id", assignmentId)
+      .single()
+    if (assignmentError || !assignmentRow) {
+      return NextResponse.json(
+        { ok: false, error: "assignment_not_found", message: "Assignment not found." },
+        { status: 404 },
+      )
+    }
+    if (assignmentRow.user_id !== userData.user.id || assignmentRow.status === "dropped") {
+      return NextResponse.json(
+        { ok: false, error: "assignment_not_owned", message: "You can only drop your own active assignment." },
+        { status: 403 },
+      )
+    }
+    const resolvedShiftId = assignmentRow.shift_id
     const { count } = await supabase
       .from("drop_requests")
       .select("id", { count: "exact", head: true })
@@ -76,7 +95,8 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from("drop_requests")
       .insert({
-        shift_id: shiftId,
+        shift_id: resolvedShiftId,
+        assignment_id: assignmentId,
         requested_by: userData.user.id,
         status: "pending",
         reason: reason ?? null,
@@ -95,7 +115,7 @@ export async function POST(request: Request) {
 
   const { data: dropRow, error: dropError } = await supabase
     .from("drop_requests")
-    .select("id,shift_id,requested_by,claimed_by,status")
+    .select("id,shift_id,assignment_id,requested_by,claimed_by,status")
     .eq("id", dropId)
     .single()
 
@@ -136,6 +156,12 @@ export async function POST(request: Request) {
     if (!dropRow.claimed_by) {
       return NextResponse.json(
         { ok: false, error: "missing_claimed_by", message: "Drop must be claimed before approval." },
+        { status: 400 },
+      )
+    }
+    if (!dropRow.assignment_id) {
+      return NextResponse.json(
+        { ok: false, error: "missing_assignment", message: "Drop assignment is required." },
         { status: 400 },
       )
     }
@@ -210,7 +236,7 @@ export async function POST(request: Request) {
         user_id: dropRow.claimed_by,
         assigned_by: userData.user.id,
       })
-      .eq("shift_id", dropRow.shift_id)
+      .eq("id", dropRow.assignment_id)
       .eq("user_id", dropRow.requested_by)
       .neq("status", "dropped")
       .select()
@@ -220,15 +246,10 @@ export async function POST(request: Request) {
     }
 
     if (!updatedAssignments || updatedAssignments.length === 0) {
-      const { error: insertError } = await supabase.from("shift_assignments").insert({
-        shift_id: dropRow.shift_id,
-        user_id: dropRow.claimed_by,
-        assigned_by: userData.user.id,
-        status: "assigned",
-      })
-      if (insertError) {
-        return NextResponse.json({ ok: false, error: "assignment_insert_failed", message: insertError.message }, { status: 500 })
-      }
+      return NextResponse.json(
+        { ok: false, error: "assignment_conflict", message: "Assignment slot is no longer available." },
+        { status: 409 },
+      )
     }
   }
 

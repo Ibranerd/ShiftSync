@@ -139,8 +139,11 @@ export async function POST(request: Request) {
     }
 
     if (rpcData?.error) {
-      return NextResponse.json({ ok: false, error: rpcData.error, message: rpcData.message }, { status: 409 })
+      const status = rpcData.error === "headcount_full" ? 409 : 400
+      return NextResponse.json({ ok: false, error: rpcData.error, message: rpcData.message }, { status })
     }
+
+    return NextResponse.json({ ok: true, result, assignmentId: rpcData?.assignment_id ?? null })
   }
 
   return NextResponse.json({ ok: true, result })

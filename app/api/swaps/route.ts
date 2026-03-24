@@ -49,17 +49,36 @@ export async function POST(request: Request) {
 
   const swapId = body.swapId as string | undefined
   const shiftId = body.shiftId as string | undefined
+  const assignmentId = body.assignmentId as string | undefined
   const targetUserId = body.targetUserId as string | undefined
   const reason = body.reason as string | undefined
 
   if (action === "request") {
-    if (!shiftId || !targetUserId) {
+    if (!assignmentId || !targetUserId) {
       return NextResponse.json(
-        { ok: false, error: "missing_shift_or_target", message: "Shift and target staff are required." },
+        { ok: false, error: "missing_assignment_or_target", message: "Assignment and target staff are required." },
         { status: 400 },
       )
     }
-    const { context, error: contextError } = await loadAssignmentContext(supabase, targetUserId, shiftId)
+    const { data: assignmentRow, error: assignmentError } = await supabase
+      .from("shift_assignments")
+      .select("id,shift_id,user_id,status")
+      .eq("id", assignmentId)
+      .single()
+    if (assignmentError || !assignmentRow) {
+      return NextResponse.json(
+        { ok: false, error: "assignment_not_found", message: "Assignment not found." },
+        { status: 404 },
+      )
+    }
+    if (assignmentRow.user_id !== userData.user.id || assignmentRow.status === "dropped") {
+      return NextResponse.json(
+        { ok: false, error: "assignment_not_owned", message: "You can only swap your own active assignment." },
+        { status: 403 },
+      )
+    }
+    const resolvedShiftId = assignmentRow.shift_id
+    const { context, error: contextError } = await loadAssignmentContext(supabase, targetUserId, resolvedShiftId)
     if (contextError || !context) {
       return NextResponse.json(
         { ok: false, error: contextError ?? "shift_not_found", message: "Shift not found." },
@@ -95,7 +114,8 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from("swap_requests")
       .insert({
-        shift_id: shiftId,
+        shift_id: resolvedShiftId,
+        assignment_id: assignmentId,
         requested_by: userData.user.id,
         target_user_id: targetUserId,
         status: "pending_staff",
@@ -115,7 +135,7 @@ export async function POST(request: Request) {
 
   const { data: swapRow, error: swapError } = await supabase
     .from("swap_requests")
-    .select("id,shift_id,requested_by,target_user_id,status")
+    .select("id,shift_id,assignment_id,requested_by,target_user_id,status")
     .eq("id", swapId)
     .single()
 
@@ -195,13 +215,19 @@ export async function POST(request: Request) {
         { status: 400 },
       )
     }
+    if (!swapRow.assignment_id) {
+      return NextResponse.json(
+        { ok: false, error: "missing_assignment", message: "Swap assignment is required." },
+        { status: 400 },
+      )
+    }
     const { data: updatedAssignments, error: updateError } = await supabase
       .from("shift_assignments")
       .update({
         user_id: swapRow.target_user_id,
         assigned_by: userData.user.id,
       })
-      .eq("shift_id", swapRow.shift_id)
+      .eq("id", swapRow.assignment_id)
       .eq("user_id", swapRow.requested_by)
       .neq("status", "dropped")
       .select()
@@ -211,15 +237,10 @@ export async function POST(request: Request) {
     }
 
     if (!updatedAssignments || updatedAssignments.length === 0) {
-      const { error: insertError } = await supabase.from("shift_assignments").insert({
-        shift_id: swapRow.shift_id,
-        user_id: swapRow.target_user_id,
-        assigned_by: userData.user.id,
-        status: "assigned",
-      })
-      if (insertError) {
-        return NextResponse.json({ ok: false, error: "assignment_insert_failed", message: insertError.message }, { status: 500 })
-      }
+      return NextResponse.json(
+        { ok: false, error: "assignment_conflict", message: "Assignment slot is no longer available." },
+        { status: 409 },
+      )
     }
   }
 

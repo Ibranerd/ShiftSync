@@ -8,6 +8,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client"
 
 type SwapRow = {
   id: string
+  assignment_id: string | null
   shift_id: string
   requested_by: string
   target_user_id: string
@@ -23,6 +24,7 @@ type SwapRow = {
 
 type DropRow = {
   id: string
+  assignment_id: string | null
   shift_id: string
   requested_by: string
   claimed_by: string | null
@@ -54,14 +56,14 @@ export default function ManagerSwapsPage() {
         supabase
           .from("swap_requests")
           .select(
-            "id,shift_id,requested_by,target_user_id,status,reason,shifts:shifts (start_utc,end_utc,location_id,locations:locations (timezone,name))",
+            "id,assignment_id,shift_id,requested_by,target_user_id,status,reason,shifts:shifts (start_utc,end_utc,location_id,locations:locations (timezone,name))",
           )
           .in("status", ["pending_manager", "pending_staff"])
           .order("created_at", { ascending: false }),
         supabase
           .from("drop_requests")
           .select(
-            "id,shift_id,requested_by,claimed_by,status,reason,shifts:shifts (start_utc,end_utc,location_id,locations:locations (timezone,name))",
+            "id,assignment_id,shift_id,requested_by,claimed_by,status,reason,shifts:shifts (start_utc,end_utc,location_id,locations:locations (timezone,name))",
           )
           .in("status", ["claimed", "pending"])
           .order("created_at", { ascending: false }),
@@ -171,6 +173,9 @@ export default function ManagerSwapsPage() {
                   {swap.requested_by} → {swap.target_user_id}
                 </div>
                 <div className="text-xs text-muted-foreground">
+                  Assignment {swap.assignment_id ?? "n/a"}
+                </div>
+                <div className="text-xs text-muted-foreground">
                   Shift {swap.shift_id} · Location {swap.shifts?.locations?.name ?? swap.shifts?.location_id ?? "unknown"}
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -229,6 +234,9 @@ export default function ManagerSwapsPage() {
                 <div className="text-xs text-muted-foreground">
                   Requested by {drop.requested_by}
                   {drop.claimed_by ? ` · Claimed by ${drop.claimed_by}` : ""}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Assignment {drop.assignment_id ?? "n/a"}
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Shift {drop.shift_id} · Location {drop.shifts?.locations?.name ?? drop.shifts?.location_id ?? "unknown"}

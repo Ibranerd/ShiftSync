@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import FullCalendar from "@fullcalendar/react"
 import dayGridPlugin from "@fullcalendar/daygrid"
 import timeGridPlugin from "@fullcalendar/timegrid"
@@ -168,6 +168,44 @@ export default function ManagerSchedulePage() {
   const [editPublish, setEditPublish] = useState<boolean>(false)
   const [editSkillIds, setEditSkillIds] = useState<string[]>([])
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([])
+  const [assignmentCounts, setAssignmentCounts] = useState<Record<string, number>>({})
+
+  const loadShiftsAndCounts = useCallback(async (locationId: string) => {
+    const supabase = createSupabaseBrowserClient()
+    const now = new Date()
+    const rangeEnd = new Date()
+    rangeEnd.setDate(now.getDate() + 21)
+    const { data: shiftRows } = await supabase
+      .from("shifts")
+      .select("id,location_id,start_utc,end_utc,required_skill_ids,headcount_needed,is_published")
+      .eq("location_id", locationId)
+      .gte("start_utc", now.toISOString())
+      .lte("start_utc", rangeEnd.toISOString())
+      .order("start_utc")
+
+    const shiftData = (shiftRows ?? []) as ShiftRow[]
+    const shiftIds = shiftData.map((shift) => shift.id)
+    if (shiftIds.length === 0) {
+      setShifts([])
+      setAssignmentCounts({})
+      return
+    }
+
+    const { data: assignmentRows } = await supabase
+      .from("shift_assignments")
+      .select("shift_id")
+      .in("shift_id", shiftIds)
+      .neq("status", "dropped")
+
+    const counts: Record<string, number> = {}
+    assignmentRows?.forEach((row: any) => {
+      if (!row.shift_id) return
+      counts[row.shift_id] = (counts[row.shift_id] ?? 0) + 1
+    })
+
+    setShifts(shiftData)
+    setAssignmentCounts(counts)
+  }, [])
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
@@ -292,23 +330,8 @@ export default function ManagerSchedulePage() {
 
   useEffect(() => {
     if (!selectedLocationId) return
-    const supabase = createSupabaseBrowserClient()
-    const loadShifts = async () => {
-      const now = new Date()
-      const rangeEnd = new Date()
-      rangeEnd.setDate(now.getDate() + 21)
-      const { data } = await supabase
-        .from("shifts")
-        .select("id,location_id,start_utc,end_utc,required_skill_ids,headcount_needed,is_published")
-        .eq("location_id", selectedLocationId)
-        .gte("start_utc", now.toISOString())
-        .lte("start_utc", rangeEnd.toISOString())
-        .order("start_utc")
-      setShifts((data ?? []) as ShiftRow[])
-    }
-
-    void loadShifts()
-  }, [selectedLocationId])
+    void loadShiftsAndCounts(selectedLocationId)
+  }, [selectedLocationId, loadShiftsAndCounts])
 
   useEffect(() => {
     if (!candidateUserId) return
@@ -375,18 +398,17 @@ export default function ManagerSchedulePage() {
       .channel("schedule-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "shifts" }, () => {
         if (!selectedLocationId) return
-        supabase
-          .from("shifts")
-          .select("id,location_id,start_utc,end_utc,required_skill_ids,headcount_needed,is_published")
-          .eq("location_id", selectedLocationId)
-          .order("start_utc")
-          .then(({ data }) => {
-            setShifts((data ?? []) as ShiftRow[])
-            setRealtimeMessage("Schedule updated in realtime.")
-          })
+        void loadShiftsAndCounts(selectedLocationId).then(() => {
+          setRealtimeMessage("Schedule updated in realtime.")
+        })
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "shift_assignments" }, () => {
         if (!candidateUserId) return
+        if (selectedLocationId) {
+          void loadShiftsAndCounts(selectedLocationId).then(() => {
+            setRealtimeMessage("Assignments updated in realtime.")
+          })
+        }
         supabase
           .from("shift_assignments")
           .select("id,shift_id,user_id,status,shifts:shifts (start_utc,end_utc)")
@@ -403,7 +425,6 @@ export default function ManagerSchedulePage() {
                 shiftEndUtc: row.shifts?.end_utc,
               })) ?? []
             setCandidateAssignments(assignments)
-            setRealtimeMessage("Assignments updated in realtime.")
           })
       })
       .subscribe()
@@ -411,7 +432,7 @@ export default function ManagerSchedulePage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [candidateUserId, selectedLocationId])
+  }, [candidateUserId, selectedLocationId, loadShiftsAndCounts])
 
   useEffect(() => {
     if (!selectedShift) return
@@ -459,13 +480,17 @@ export default function ManagerSchedulePage() {
 
   const events = useMemo(
     () =>
-      filteredShifts.map((shift) => ({
-        id: shift.id,
-        title: `${shift.is_published ? "Published" : "Draft"} shift`,
-        start: shift.start_utc,
-        end: shift.end_utc,
-      })),
-    [filteredShifts],
+      filteredShifts.map((shift) => {
+        const filled = assignmentCounts[shift.id] ?? 0
+        const headcount = shift.headcount_needed ?? 1
+        return {
+          id: shift.id,
+          title: `${shift.is_published ? "Published" : "Draft"} · ${filled}/${headcount} filled`,
+          start: shift.start_utc,
+          end: shift.end_utc,
+        }
+      }),
+    [assignmentCounts, filteredShifts],
   )
 
   const runValidation = async (targetShift: Shift) => {
@@ -679,6 +704,10 @@ export default function ManagerSchedulePage() {
     })
     const data = await response.json()
     if (!data.ok) {
+      if (data.error === "headcount_full") {
+        setAssignmentMessage("Headcount is full for this shift. Choose another shift or adjust headcount.")
+        return
+      }
       setAssignmentMessage(data.message ?? data.error ?? "Assignment failed.")
       return
     }
@@ -759,6 +788,11 @@ export default function ManagerSchedulePage() {
           <div>
             <div className="text-sm text-muted-foreground">Publish state</div>
             <div className="text-lg font-semibold capitalize">{publishStatus}</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {selectedShift
+                ? `Filled: ${assignmentCounts[selectedShift.id] ?? 0}/${selectedShift.headcount_needed ?? 1}`
+                : "Select a shift to view headcount filled."}
+            </div>
           </div>
           <div className="flex gap-2">
             <button
