@@ -22,6 +22,7 @@ import {
 } from "@/lib/constraint-engine"
 import { calculateWeeklyHours } from "@/lib/overtime"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
+import { formatAssignmentError } from "@/lib/ui/errors"
 
 type ShiftRow = {
   id: string
@@ -704,19 +705,7 @@ export default function ManagerSchedulePage() {
     })
     const data = await response.json()
     if (!data.ok) {
-      if (data.error === "headcount_full") {
-        setAssignmentMessage("Headcount is full for this shift. Choose another shift or adjust headcount.")
-        return
-      }
-      if (data.error === "conflict") {
-        setAssignmentMessage("Another manager just updated assignments for this shift or staff member. Please retry.")
-        return
-      }
-      if (data.error === "overlap") {
-        setAssignmentMessage("Staff member is already assigned to an overlapping shift.")
-        return
-      }
-      setAssignmentMessage(data.message ?? data.error ?? "Assignment failed.")
+      setAssignmentMessage(formatAssignmentError(data.error, data.message ?? data.error ?? "Assignment failed."))
       return
     }
     if (!data.result?.valid) {

@@ -5,6 +5,7 @@ import { formatInTimeZone } from "date-fns-tz"
 import type { SwapAction, SwapStatus } from "@/lib/swaps/state-machine"
 import type { DropAction, DropStatus } from "@/lib/drops/state-machine"
 import { createSupabaseBrowserClient } from "@/lib/supabase/client"
+import { formatStaffDropError, formatStaffSwapError } from "@/lib/ui/errors"
 
 type SwapRow = {
   id: string
@@ -38,6 +39,134 @@ type DropRow = {
   } | null
 }
 
+type SwapCardProps = {
+  swap: SwapRow
+  currentUserId: string
+  onAction: (swap: SwapRow, action: SwapAction) => void
+}
+
+type DropCardProps = {
+  drop: DropRow
+  currentUserId: string
+  onAction: (drop: DropRow, action: DropAction) => void
+}
+
+type AvailableDropCardProps = {
+  drop: DropRow
+  onAction: (drop: DropRow, action: DropAction) => void
+}
+
+function SwapRequestCard({ swap, currentUserId, onAction }: SwapCardProps) {
+  return (
+    <div className="rounded-md border border-border bg-muted/10 p-3">
+      <div className="flex items-center justify-between">
+        <div className="font-medium">{swap.id}</div>
+        <span className="rounded-full border border-border px-2 py-0.5 text-xs uppercase tracking-wide text-muted-foreground">
+          {swap.status}
+        </span>
+      </div>
+      <div className="text-xs text-muted-foreground">
+        Shift {swap.shift_id} · Location {swap.shifts?.locations?.name ?? swap.shifts?.location_id ?? "unknown"}
+      </div>
+      <div className="text-xs text-muted-foreground">Assignment {swap.assignment_id ?? "n/a"}</div>
+      <div className="text-xs text-muted-foreground">
+        {swap.shifts?.start_utc && swap.shifts?.end_utc
+          ? `${formatInTimeZone(new Date(swap.shifts.start_utc), swap.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")} → ${formatInTimeZone(new Date(swap.shifts.end_utc), swap.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")}`
+          : "Unknown time"}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {swap.status === "pending_staff" && swap.target_user_id === currentUserId && (
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
+            onClick={() => onAction(swap, "accept")}
+          >
+            Accept
+          </button>
+        )}
+        {(swap.status === "pending_staff" || swap.status === "pending_manager") && swap.requested_by === currentUserId && (
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
+            onClick={() => onAction(swap, "cancel")}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+      {(swap.status === "cancelled" || swap.status === "expired") && (
+        <div className="mt-2 text-xs text-amber-600">This request was closed after a schedule update.</div>
+      )}
+    </div>
+  )
+}
+
+function DropRequestCard({ drop, currentUserId, onAction }: DropCardProps) {
+  return (
+    <div className="rounded-md border border-border bg-muted/10 p-3">
+      <div className="flex items-center justify-between">
+        <div className="font-medium">{drop.id}</div>
+        <span className="rounded-full border border-border px-2 py-0.5 text-xs uppercase tracking-wide text-muted-foreground">
+          {drop.status}
+        </span>
+      </div>
+      <div className="text-xs text-muted-foreground">
+        Shift {drop.shift_id} · Location {drop.shifts?.locations?.name ?? drop.shifts?.location_id ?? "unknown"}
+      </div>
+      <div className="text-xs text-muted-foreground">Assignment {drop.assignment_id ?? "n/a"}</div>
+      <div className="text-xs text-muted-foreground">
+        {drop.shifts?.start_utc && drop.shifts?.end_utc
+          ? `${formatInTimeZone(new Date(drop.shifts.start_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")} → ${formatInTimeZone(new Date(drop.shifts.end_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")}`
+          : "Unknown time"}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {(drop.status === "pending" || drop.status === "claimed") && drop.requested_by === currentUserId && (
+          <button
+            type="button"
+            className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
+            onClick={() => onAction(drop, "cancel")}
+          >
+            Cancel
+          </button>
+        )}
+      </div>
+      {(drop.status === "cancelled" || drop.status === "expired") && (
+        <div className="mt-2 text-xs text-amber-600">This request was closed after a schedule update.</div>
+      )}
+    </div>
+  )
+}
+
+function AvailableDropCard({ drop, onAction }: AvailableDropCardProps) {
+  return (
+    <div className="rounded-md border border-border bg-muted/10 p-3">
+      <div className="flex items-center justify-between">
+        <div className="font-medium">{drop.id}</div>
+        <span className="rounded-full border border-border px-2 py-0.5 text-xs uppercase tracking-wide text-muted-foreground">
+          {drop.status}
+        </span>
+      </div>
+      <div className="text-xs text-muted-foreground">
+        Shift {drop.shift_id} · Location {drop.shifts?.locations?.name ?? drop.shifts?.location_id ?? "unknown"}
+      </div>
+      <div className="text-xs text-muted-foreground">
+        {drop.shifts?.start_utc && drop.shifts?.end_utc
+          ? `${formatInTimeZone(new Date(drop.shifts.start_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")} → ${formatInTimeZone(new Date(drop.shifts.end_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")}`
+          : "Unknown time"}
+      </div>
+      <div className="mt-2">
+        <button
+          type="button"
+          className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
+          onClick={() => onAction(drop, "claim")}
+        >
+          Claim drop
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function StaffSwapRequestsPage() {
   const [swapRequests, setSwapRequests] = useState<SwapRow[]>([])
   const [dropRequests, setDropRequests] = useState<DropRow[]>([])
@@ -61,55 +190,6 @@ export default function StaffSwapRequestsPage() {
     }>
   >([])
 
-  const formatSwapError = (error: string | undefined, fallback: string) => {
-    switch (error) {
-      case "swap_limit_reached":
-        return "You already have 3 pending swap requests."
-      case "assignment_not_found":
-        return "That assignment is no longer available."
-      case "assignment_not_owned":
-        return "You can only swap your own active assignment."
-      case "validation_failed":
-        return "The target staff member is not eligible for this shift."
-      case "invalid_transition":
-        return "That swap action is no longer valid."
-      case "conflict":
-      case "assignment_conflict":
-        return "This swap was just handled by someone else. Refresh to see the latest status."
-      case "forbidden":
-        return "You do not have permission to perform this action."
-      case "missing_assignment":
-        return "Please select a valid assignment."
-      case "missing_target_user":
-        return "Select a target staff member."
-      default:
-        return fallback
-    }
-  }
-
-  const formatDropError = (error: string | undefined, fallback: string) => {
-    switch (error) {
-      case "drop_limit_reached":
-        return "You already have 3 pending drop requests."
-      case "assignment_not_found":
-        return "That assignment is no longer available."
-      case "assignment_not_owned":
-        return "You can only drop your own active assignment."
-      case "validation_failed":
-        return "You are not eligible to claim this drop."
-      case "invalid_transition":
-        return "That drop action is no longer valid."
-      case "conflict":
-      case "assignment_conflict":
-        return "This drop was just handled by someone else. Refresh to see the latest status."
-      case "missing_claimed_by":
-        return "This drop must be claimed before approval."
-      case "missing_assignment":
-        return "Please select a valid assignment."
-      default:
-        return fallback
-    }
-  }
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient()
@@ -220,7 +300,7 @@ export default function StaffSwapRequestsPage() {
     })
     const data = await response.json()
     if (!data.ok) {
-      setMessage(formatSwapError(data.error, data.message ?? "Swap action failed."))
+      setMessage(formatStaffSwapError(data.error, data.message ?? "Swap action failed."))
       return
     }
   }
@@ -243,7 +323,7 @@ export default function StaffSwapRequestsPage() {
     })
     const data = await response.json()
     if (!data.ok) {
-      setMessage(formatSwapError(data.error, data.message ?? "Swap request failed."))
+      setMessage(formatStaffSwapError(data.error, data.message ?? "Swap request failed."))
       return
     }
   }
@@ -266,7 +346,7 @@ export default function StaffSwapRequestsPage() {
     })
     const data = await response.json()
     if (!data.ok) {
-      setDropMessage(formatDropError(data.error, data.message ?? "Drop action failed."))
+      setDropMessage(formatStaffDropError(data.error, data.message ?? "Drop action failed."))
       return
     }
   }
@@ -288,7 +368,7 @@ export default function StaffSwapRequestsPage() {
     })
     const data = await response.json()
     if (!data.ok) {
-      setDropMessage(formatDropError(data.error, data.message ?? "Drop request failed."))
+      setDropMessage(formatStaffDropError(data.error, data.message ?? "Drop request failed."))
       return
     }
   }
@@ -375,51 +455,7 @@ export default function StaffSwapRequestsPage() {
         ) : (
           <div className="mt-3 space-y-3 text-sm">
             {swapRequests.map((swap) => (
-              <div key={swap.id} className="rounded-md border border-border bg-muted/10 p-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{swap.id}</div>
-                  <span className="rounded-full border border-border px-2 py-0.5 text-xs uppercase tracking-wide text-muted-foreground">
-                    {swap.status}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Shift {swap.shift_id} · Location {swap.shifts?.locations?.name ?? swap.shifts?.location_id ?? "unknown"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Assignment {swap.assignment_id ?? "n/a"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {swap.shifts?.start_utc && swap.shifts?.end_utc
-                    ? `${formatInTimeZone(new Date(swap.shifts.start_utc), swap.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")} → ${formatInTimeZone(new Date(swap.shifts.end_utc), swap.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")}`
-                    : "Unknown time"}
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {swap.status === "pending_staff" && swap.target_user_id === currentUserId && (
-                    <button
-                      type="button"
-                      className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
-                      onClick={() => handleSwapAction(swap, "accept")}
-                    >
-                      Accept
-                    </button>
-                  )}
-                  {(swap.status === "pending_staff" || swap.status === "pending_manager") &&
-                    swap.requested_by === currentUserId && (
-                      <button
-                        type="button"
-                        className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
-                        onClick={() => handleSwapAction(swap, "cancel")}
-                      >
-                        Cancel
-                      </button>
-                    )}
-                </div>
-                {(swap.status === "cancelled" || swap.status === "expired") && (
-                  <div className="mt-2 text-xs text-amber-600">
-                    This request was closed after a schedule update.
-                  </div>
-                )}
-              </div>
+              <SwapRequestCard key={swap.id} swap={swap} currentUserId={currentUserId} onAction={handleSwapAction} />
             ))}
           </div>
         )}
@@ -477,41 +513,7 @@ export default function StaffSwapRequestsPage() {
         ) : (
           <div className="mt-3 space-y-3 text-sm">
             {dropRequests.map((drop) => (
-              <div key={drop.id} className="rounded-md border border-border bg-muted/10 p-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{drop.id}</div>
-                  <span className="rounded-full border border-border px-2 py-0.5 text-xs uppercase tracking-wide text-muted-foreground">
-                    {drop.status}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Shift {drop.shift_id} · Location {drop.shifts?.locations?.name ?? drop.shifts?.location_id ?? "unknown"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Assignment {drop.assignment_id ?? "n/a"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {drop.shifts?.start_utc && drop.shifts?.end_utc
-                    ? `${formatInTimeZone(new Date(drop.shifts.start_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")} → ${formatInTimeZone(new Date(drop.shifts.end_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")}`
-                    : "Unknown time"}
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  {(drop.status === "pending" || drop.status === "claimed") && drop.requested_by === currentUserId && (
-                    <button
-                      type="button"
-                      className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
-                      onClick={() => handleDropAction(drop, "cancel")}
-                    >
-                      Cancel
-                    </button>
-                  )}
-                </div>
-                {(drop.status === "cancelled" || drop.status === "expired") && (
-                  <div className="mt-2 text-xs text-amber-600">
-                    This request was closed after a schedule update.
-                  </div>
-                )}
-              </div>
+              <DropRequestCard key={drop.id} drop={drop} currentUserId={currentUserId} onAction={handleDropAction} />
             ))}
           </div>
         )}
@@ -524,31 +526,7 @@ export default function StaffSwapRequestsPage() {
         ) : (
           <div className="mt-3 space-y-3 text-sm">
             {availableDrops.map((drop) => (
-              <div key={drop.id} className="rounded-md border border-border bg-muted/10 p-3">
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{drop.id}</div>
-                  <span className="rounded-full border border-border px-2 py-0.5 text-xs uppercase tracking-wide text-muted-foreground">
-                    {drop.status}
-                  </span>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Shift {drop.shift_id} · Location {drop.shifts?.locations?.name ?? drop.shifts?.location_id ?? "unknown"}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {drop.shifts?.start_utc && drop.shifts?.end_utc
-                    ? `${formatInTimeZone(new Date(drop.shifts.start_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")} → ${formatInTimeZone(new Date(drop.shifts.end_utc), drop.shifts.locations?.timezone ?? "UTC", "MMM d, h:mm a")}`
-                    : "Unknown time"}
-                </div>
-                <div className="mt-2">
-                  <button
-                    type="button"
-                    className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-muted"
-                    onClick={() => handleDropAction(drop, "claim")}
-                  >
-                    Claim drop
-                  </button>
-                </div>
-              </div>
+              <AvailableDropCard key={drop.id} drop={drop} onAction={handleDropAction} />
             ))}
           </div>
         )}
