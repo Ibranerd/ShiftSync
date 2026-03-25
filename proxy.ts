@@ -16,7 +16,7 @@ function extractRole(user: { app_metadata?: Record<string, unknown>; user_metada
   return null
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   if (

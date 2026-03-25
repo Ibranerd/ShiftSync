@@ -279,7 +279,7 @@ export default function StaffSwapRequestsPage() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [dropAssignmentId, swapAssignmentId])
 
   const handleSwapAction = async (swap: SwapRow, action: SwapAction) => {
     if (action === "request" && swapCount >= 3) {

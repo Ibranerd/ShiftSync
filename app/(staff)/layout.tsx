@@ -1,9 +1,9 @@
 import SideDrawerLayout from "@/components/side-drawer-layout"
 
 const navLinks = [
-  { href: "/my-shifts", label: "My Shifts" },
-  { href: "/availability", label: "Availability" },
-  { href: "/swap-requests", label: "Swap Requests" },
+  { href: "/staff/my-shifts", label: "My Shifts" },
+  { href: "/staff/availability", label: "Availability" },
+  { href: "/staff/swap-requests", label: "Swap Requests" },
 ]
 
 export default function StaffLayout({ children }: { children: React.ReactNode }) {

@@ -1,11 +1,11 @@
 import SideDrawerLayout from "@/components/side-drawer-layout"
 
 const navLinks = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/schedule", label: "Schedule" },
-  { href: "/staff", label: "Staff" },
+  { href: "/manager/dashboard", label: "Dashboard" },
+  { href: "/manager/schedule", label: "Schedule" },
+  { href: "/manager/staff", label: "Staff" },
   { href: "/manager/fairness", label: "Fairness" },
-  { href: "/swaps", label: "Swaps" },
+  { href: "/manager/swaps", label: "Swaps" },
 ]
 
 export default function ManagerLayout({ children }: { children: React.ReactNode }) {

@@ -1,8 +1,8 @@
 import SideDrawerLayout from "@/components/side-drawer-layout"
 
 const navLinks = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/audit-logs", label: "Audit Logs" },
+  { href: "/admin/dashboard", label: "Dashboard" },
+  { href: "/admin/audit-logs", label: "Audit Logs" },
   { href: "/admin/fairness", label: "Fairness" },
 ]
 
