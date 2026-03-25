@@ -239,7 +239,7 @@ async function seed() {
   await supabase.from("user_skills").upsert(skillAssignments, { onConflict: "user_id,skill_id" })
 
   // Availability windows with exception
-  const availability = staffIds.flatMap((userId, idx) => [
+  const availability = staffIds.flatMap((userId) => [
     {
       user_id: userId,
       day_of_week: 1,
@@ -312,44 +312,26 @@ async function seed() {
     .from("notification_preferences")
     .upsert(preferences, { onConflict: "user_id" })
 
-  // Shifts with conflict case
-  const onDutyStart = new Date(now.getTime() - 60 * 60 * 1000)
-  const onDutyEnd = new Date(now.getTime() + 5 * 60 * 60 * 1000)
-  const shiftRows = [
-    {
-      location_id: nycLocation.id,
-      start_utc: onDutyStart.toISOString(),
-      end_utc: onDutyEnd.toISOString(),
-      required_skill_ids: [skillRows[0].id],
-      is_premium: true,
-      headcount_needed: 2,
+  // Primary seeded shifts for each upcoming day (next 7 days)
+  const shiftRows = Array.from({ length: 7 }, (_, idx) => {
+    const day = addDaysUtc(todayUtc, idx + 1)
+    const isNyc = idx % 2 === 0
+    return {
+      location_id: isNyc ? nycLocation.id : laLocations[0].id,
+      start_utc: isoAtUtc(day, 14),
+      end_utc: isoAtUtc(day, 22),
+      required_skill_ids: [skillRows[idx % skillRows.length].id],
+      is_premium: idx % 2 === 0,
+      headcount_needed: idx % 3 === 0 ? 2 : 1,
       is_published: true,
-    },
-    {
-      location_id: nycLocation.id,
-      start_utc: isoAtUtc(addDaysUtc(todayUtc, 1), 14),
-      end_utc: isoAtUtc(addDaysUtc(todayUtc, 1), 22),
-      required_skill_ids: [skillRows[1].id],
-      is_premium: false,
-      headcount_needed: 1,
-      is_published: false,
-    },
-    {
-      location_id: laLocations[0].id,
-      start_utc: isoAtUtc(addDaysUtc(todayUtc, 2), 14),
-      end_utc: isoAtUtc(addDaysUtc(todayUtc, 2), 22),
-      required_skill_ids: [skillRows[2].id],
-      is_premium: true,
-      headcount_needed: 3,
-      is_published: true,
-    },
-  ]
+    }
+  })
 
-  // Additional shifts for overtime + fairness imbalance
+  // Additional NY shifts for overtime + fairness imbalance (also within upcoming week)
   const overtimeShiftRows = Array.from({ length: 5 }, (_, idx) => ({
     location_id: nycLocation.id,
-    start_utc: isoAtUtc(addDaysUtc(todayUtc, idx + 3), 12),
-    end_utc: isoAtUtc(addDaysUtc(todayUtc, idx + 3), 20),
+    start_utc: isoAtUtc(addDaysUtc(todayUtc, idx + 1), 8),
+    end_utc: isoAtUtc(addDaysUtc(todayUtc, idx + 1), 16),
     required_skill_ids: [skillRows[0].id],
     is_premium: true,
     headcount_needed: 1,

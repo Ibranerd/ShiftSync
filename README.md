@@ -94,6 +94,35 @@ Managers:
 Staff:
 - staff1@shiftsync.dev through staff20@shiftsync.dev
 
+## Deliverables
+
+1. **Working Application** — Deployed to a publicly accessible URL
+   - Live app: `https://shift-sync-seven.vercel.app/login`
+
+2. **Source Code** — Repository with commit history
+   - This repository contains the full ShiftSync implementation and incremental commit history.
+
+3. **Seed Data** — Pre-populated with realistic test data covering edge cases
+   - Seed command: `./scripts/run-seed.sh`
+   - Includes 4 locations across 2 time zones (New York + Los Angeles locations).
+   - Includes admin, manager, and 20 staff users with varied skills and location certifications.
+   - Includes recurring availability and one-off exception windows.
+   - Includes upcoming schedule data for the next 7 days from seed run time.
+   - Includes conflict-oriented scenarios (swap/drop requests, overtime warning setup, fairness imbalance patterns).
+
+4. **Brief Documentation** — Login by role, known limitations, and assumptions
+   - Login:
+     - Admin: `admin@shiftsync.dev`
+     - Managers: `manager1@shiftsync.dev`, `manager2@shiftsync.dev`
+     - Staff: `staff1@shiftsync.dev` through `staff20@shiftsync.dev`
+     - Shared password: `Password123!`
+   - Assumptions made for ambiguous requirements:
+     - De-certification does not retroactively invalidate historical assignments.
+     - Desired hours influence fairness planning, not hard assignment eligibility.
+     - Any day with at least one shift counts toward consecutive-day rules.
+     - Shift edits after swap approval apply to the updated assignee and are captured in audit logs.
+     - Each location uses one canonical timezone for display and validation consistency.
+
 ## Scripts
 
 - `./scripts/run-seed.sh` – run the seed script with env loading
