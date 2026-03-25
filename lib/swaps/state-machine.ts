@@ -10,6 +10,7 @@ export type SwapAction = "request" | "accept" | "reject" | "approve" | "cancel" 
 
 const transitions: Record<SwapStatus, Partial<Record<SwapAction, SwapStatus>>> = {
   pending_staff: {
+    request: "pending_staff",
     accept: "pending_manager",
     cancel: "cancelled",
     expire: "expired",

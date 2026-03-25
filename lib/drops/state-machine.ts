@@ -10,6 +10,7 @@ export type DropAction = "request" | "claim" | "approve" | "reject" | "cancel" |
 
 const transitions: Record<DropStatus, Partial<Record<DropAction, DropStatus>>> = {
   pending: {
+    request: "pending",
     claim: "claimed",
     cancel: "cancelled",
     expire: "expired",
