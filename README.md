@@ -65,11 +65,11 @@ NEXT_SUPABASE_SERVICE_ROLE_KEY=
 1. Create a Supabase project.
 2. Link the CLI:
    ```
-   /opt/homebrew/bin/supabase link --project-ref <your_project_ref>
+   supabase link --project-ref <your_project_ref>
    ```
 3. Apply migrations:
    ```
-   /opt/homebrew/bin/supabase db push
+   supabase db push
    ```
 4. Seed data:
    ```
@@ -96,13 +96,13 @@ Staff:
 
 ## Deliverables
 
-1. **Working Application** — Deployed to a publicly accessible URL
-   - Live app: `https://shift-sync-seven.vercel.app/login`
+1. **Working Application** 
+   - Live app: https://shiftsync-yukg.onrender.com
 
-2. **Source Code** — Repository with commit history
+2. **Source Code** 
    - This repository contains the full ShiftSync implementation and incremental commit history.
 
-3. **Seed Data** — Pre-populated with realistic test data covering edge cases
+3. **Seed Data** 
    - Seed command: `./scripts/run-seed.sh`
    - Includes 4 locations across 2 time zones (New York + Los Angeles locations).
    - Includes admin, manager, and 20 staff users with varied skills and location certifications.
@@ -110,7 +110,7 @@ Staff:
    - Includes upcoming schedule data for the next 7 days from seed run time.
    - Includes conflict-oriented scenarios (swap/drop requests, overtime warning setup, fairness imbalance patterns).
 
-4. **Brief Documentation** — Login by role, known limitations, and assumptions
+4. **Brief Documentation** 
    - Login:
      - Admin: `admin@shiftsync.dev`
      - Managers: `manager1@shiftsync.dev`, `manager2@shiftsync.dev`
@@ -147,6 +147,5 @@ npm test
 
 Deployment URL:
 
-```
-https://shift-sync-seven.vercel.app/login
-```
+https://shiftsync-yukg.onrender.com
+
