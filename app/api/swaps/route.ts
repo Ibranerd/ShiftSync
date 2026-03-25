@@ -48,7 +48,6 @@ export async function POST(request: Request) {
   }
 
   const swapId = body.swapId as string | undefined
-  const shiftId = body.shiftId as string | undefined
   const assignmentId = body.assignmentId as string | undefined
   const targetUserId = body.targetUserId as string | undefined
   const reason = body.reason as string | undefined

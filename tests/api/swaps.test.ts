@@ -57,7 +57,7 @@ describe("swaps API", () => {
     const supabase = createSupabaseMock({
       shift_assignments: {
         single: () => ({
-          data: { id: "assign-1", shift_id: "shift-1", user_id: "staff-1", status: "assigned" },
+          data: { id: "assign-1", shift_id: "shift-1", user_id: "manager-1", status: "assigned" },
           error: null,
         }),
       },

@@ -52,7 +52,6 @@ export async function POST(request: Request) {
   }
 
   const dropId = body.dropId as string | undefined
-  const shiftId = body.shiftId as string | undefined
   const assignmentId = body.assignmentId as string | undefined
   const reason = body.reason as string | undefined
 

@@ -238,11 +238,11 @@ describe("constraint engine rules", () => {
 
   it("warns on sixth consecutive day", () => {
     const assignments = [
-      makeAssignment("2025-01-04T12:00:00.000Z", "2025-01-04T18:00:00.000Z"),
       makeAssignment("2025-01-05T12:00:00.000Z", "2025-01-05T18:00:00.000Z"),
       makeAssignment("2025-01-06T12:00:00.000Z", "2025-01-06T18:00:00.000Z"),
       makeAssignment("2025-01-07T12:00:00.000Z", "2025-01-07T18:00:00.000Z"),
       makeAssignment("2025-01-08T12:00:00.000Z", "2025-01-08T18:00:00.000Z"),
+      makeAssignment("2025-01-09T12:00:00.000Z", "2025-01-09T18:00:00.000Z"),
     ]
     const violations = ruleConsecutiveDays(baseShift, assignments)
     expect(violations[0]?.rule).toBe("CONSECUTIVE_DAYS_6")
